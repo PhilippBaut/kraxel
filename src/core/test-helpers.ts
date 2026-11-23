@@ -4,6 +4,9 @@ import type { GameEvent, Held } from './types.ts';
 import { STEP } from '../config.ts';
 import { TileGrid } from './grid.ts';
 import { emptyHeld, InputSampler } from './input-frame.ts';
+import { createGame, stepGame } from './game.ts';
+import type { GameState, Session } from './game.ts';
+import { parseLevel } from './level.ts';
 import { stepPlayer } from './player.ts';
 import type { PlayerState } from './player.ts';
 import { DEFAULT_TUNING } from './tuning.ts';
@@ -50,4 +53,21 @@ export function runPlayer(p: PlayerState, grid: TileGrid, script: Script, t: Tun
     }
   }
   return { events, headCells, poundCells, minY, maxVy };
+}
+
+/** Baut ein Spiel aus Textzeilen (Kopfzeilen werden davor gesetzt). */
+export function gameFrom(rows: string[], session?: Session): GameState {
+  return createGame(parseLevel('test', `name: test\nworld: 1\n---\n${rows.join('\n')}`), session);
+}
+
+/** Lässt das Spiel mit festem Schritt laufen und sammelt alle Ereignisse. */
+export function runGame(s: GameState, script: Script, t: Tuning = DEFAULT_TUNING): GameEvent[] {
+  const sampler = new InputSampler();
+  const events: GameEvent[] = [];
+  for (const [input, steps] of script) {
+    for (let i = 0; i < steps; i++) {
+      events.push(...stepGame(s, sampler.sample(held(input)), t, { x: 0, w: 512 }, STEP));
+    }
+  }
+  return events;
 }
