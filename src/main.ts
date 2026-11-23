@@ -1,10 +1,6 @@
 import Phaser from 'phaser';
-
-class EmptyScene extends Phaser.Scene {
-  constructor() {
-    super('Empty');
-  }
-}
+import { BootScene } from './scenes/BootScene.ts';
+import { GalleryScene } from './scenes/GalleryScene.ts';
 
 for (const type of ['gesturestart', 'dblclick', 'contextmenu']) {
   document.addEventListener(type, (e) => e.preventDefault());
@@ -24,5 +20,5 @@ new Phaser.Game({
   },
   input: { keyboard: false, mouse: false, touch: false, gamepad: false },
   audio: { noAudio: true },
-  scene: [EmptyScene],
+  scene: [BootScene, GalleryScene],
 });

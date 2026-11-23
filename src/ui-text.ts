@@ -1,0 +1,19 @@
+// Alle sichtbaren Texte, Deutsch in Großbuchstaben („ß“ wird „SS“).
+export const TEXT = {
+  TAP_TO_START: 'TIPPEN ZUM STARTEN',
+  IOS_HINT: ['FÜR VOLLBILD: TEILEN →', 'ZUM HOME-BILDSCHIRM'],
+  PAUSE: 'PAUSE',
+  RESUME: 'WEITER',
+  RESTART: 'NEU STARTEN',
+  SOUND_ON: 'TON: AN',
+  SOUND_OFF: 'TON: AUS',
+  GOAL: 'GIPFEL ERREICHT!',
+  TIME: 'ZEIT',
+  BEST: 'BESTZEIT',
+  NEW_RECORD: 'NEUER REKORD!',
+  AGAIN: 'NOCHMAL',
+  NEXT: 'WEITER',
+  GAME_OVER: 'GAME OVER',
+  CRYSTALS: 'KRISTALLE',
+  EDELWEISS: 'EDELWEISS',
+} as const;

@@ -1,0 +1,75 @@
+import { describe, it, expect } from 'vitest';
+import { BASE } from './palette.ts';
+import { buildSprites, KRAXEL_FRAMES, helmName } from './sprites.ts';
+
+const S = buildSprites();
+const text = (name: string) => S[name].map((r) => r.join(''));
+
+describe('sprites', () => {
+  it('alle Sprites sind rechteckig und nutzen nur Zeichen aus BASE', () => {
+    for (const [name, g] of Object.entries(S)) {
+      expect(new Set(g.map((r) => r.length)).size, name).toBe(1);
+      for (const ch of g.flat()) expect(ch === '.' || ch in BASE, `${name}: ${ch}`).toBe(true);
+    }
+  });
+
+  it('Kraxel-Bilder sind 16×16 und haben eine Helm-Variante', () => {
+    for (const f of KRAXEL_FRAMES) {
+      expect([S[f].length, S[f][0].length]).toEqual([16, 16]);
+      expect([S[helmName(f)].length, S[helmName(f)][0].length]).toEqual([16, 16]);
+    }
+    expect(KRAXEL_FRAMES).toContain('kraxelPound');
+  });
+
+  it('Gipfelkreuz ist 5 Kacheln hoch', () => {
+    expect(S.cross.length).toBe(80);
+  });
+
+  it('KRAXEL_FRAMES enthält genau alle kraxel*-Bilder ohne Helm', () => {
+    const all = Object.keys(S).filter((n) => n.startsWith('kraxel') && !n.endsWith('Helm'));
+    expect([...KRAXEL_FRAMES].sort()).toEqual(all.sort());
+    expect(helmName('kraxelJ')).toBe('kraxelJHelm');
+  });
+
+  it('kraxel steht genau wie im Entwurf', () => {
+    expect(text('kraxel')).toEqual([
+      '......oo........',
+      '.....oPPo.......',
+      '.....oPPoooo....',
+      '.....oHhhHHo....',
+      '....oHhHHHHHo...',
+      '...oSSSSSSSSSo..',
+      '...ossssssssso..',
+      '.oooBBBBWWBWWo..',
+      '.oKoBBBBWEBWEo..',
+      '.oKoBBBBWEBWEo..',
+      '.oKoBBBRBBEBRo..',
+      '.okoBBBBBBBBBo..',
+      '.okobBBBBBBBbo..',
+      '.oooobbbbbbbo...',
+      '...oFFFoooFFFo..',
+      '...ooooo.ooooo..',
+    ]);
+    expect(text('kraxelB').slice(14)).toEqual(['....oFFFoFFFo...', '....ooooooooo...']);
+    expect(text('kraxelJ').slice(14)).toEqual(['..oFFFo..oFFFo..', '..ooooo..ooooo..']);
+  });
+
+  it('Helm-Varianten tragen den Helm statt der Mütze', () => {
+    for (const f of KRAXEL_FRAMES) {
+      const helm = S[helmName(f)].flat();
+      expect(helm.some((c) => c === 'P' || c === 'H' || c === 'h'), f).toBe(false);
+      expect(helm.includes('Q'), f).toBe(true);
+      expect(S[f].flat().includes('H'), f).toBe(true);
+    }
+  });
+
+  it('cairnFlag ist das Steinmännchen mit Fahne', () => {
+    expect([S.cairn.length, S.cairn[0].length]).toEqual([16, 16]);
+    S.cairn.forEach((row, y) =>
+      row.forEach((c, x) => {
+        if (c !== '.' && c !== 'o') expect(S.cairnFlag[y][x], `${x},${y}`).toBe(c);
+      }),
+    );
+    expect([S.debris.length, S.debris[0].length]).toEqual([8, 8]);
+  });
+});
