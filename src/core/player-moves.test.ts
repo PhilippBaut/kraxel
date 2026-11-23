@@ -57,3 +57,23 @@ describe('Stampfen', () => {
     expect(runPlayer(p, FLAT, [[{ down: true }, 5]]).events).not.toContainEqual({ type: 'pound' });
   });
 });
+
+describe('Korrekturen', () => {
+  it('Bodensprung an der Wand mit up gehalten ist ein normaler Sprung', () => {
+    const p = createPlayer(4, 14); p.body.x = 96 - PLAYER_W;
+    runPlayer(p, WALL, [[{}, 3]]); const y0 = p.body.y;
+    const r = runPlayer(p, WALL, [[{ right: true, up: true, jump: true }, 1]]);
+    expect(r.events).toContainEqual({ type: 'jump' });
+    expect(p.mode).toBe('normal'); expect(p.body.vy).toBeLessThan(-200);
+    const r2 = runPlayer(p, WALL, [[{ jump: true }, 40]]);
+    expect(y0 - Math.min(r.minY, r2.minY)).toBeGreaterThanOrEqual(58);
+  });
+  it('Kraxeln gegen eine Decke endet nach dem ersten Kopfstoß', () => {
+    const p = createPlayer(4, 14); p.body.x = 96 - PLAYER_W;
+    // Kisten in Reihe 12 über dem freien Raum links der Wand
+    const g2 = gridFrom([...Array(12).fill('......#####'), 'KKKKKK#####', ...Array(2).fill('......#####'), '###########']);
+    const r = runPlayer(p, g2, [[{ right: true, up: true }, 30]]);
+    expect(r.headCells.length).toBe(1);
+    expect(p.mode).not.toBe('climb');
+  });
+});

@@ -103,8 +103,8 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
 
   // Springen: Boden vor Wand.
   let overrideVx = false;
-  tryJump(p, t, events);
-  if (p.jumpBuffer > 0 && (p.mode === 'wallSlide' || p.mode === 'climb')) {
+  if (tryJump(p, t, events)) p.mode = 'normal'; // Bodensprung hat Vorrang vor Kraxeln
+  else if (p.jumpBuffer > 0 && (p.mode === 'wallSlide' || p.mode === 'climb')) {
     wallJump(p, t, events);
     overrideVx = true;
   }
@@ -135,6 +135,10 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
   if (p.mode === 'climb') {
     p.climbLeft = Math.max(0, p.climbLeft - (y0 - b.y));
     if (p.climbLeft < 1e-6) p.climbLeft = 0;
+    if (res.up) { // Decke über dem Kletterweg: Kraft weg, Klettern endet (vy ist nach dem Stoß 0)
+      p.climbLeft = 0;
+      p.mode = 'normal';
+    }
   }
 
   const wasGrounded = p.grounded;
@@ -165,8 +169,8 @@ function updateRun(p: PlayerState, dir: number, t: Tuning, dt: number): void {
   p.speedCap = t.walkSpeed + (t.runSpeed - t.walkSpeed) * ramp;
 }
 
-function tryJump(p: PlayerState, t: Tuning, events: GameEvent[]): void {
-  if (p.jumpBuffer <= 0 || !(p.grounded || p.coyote > 0)) return;
+function tryJump(p: PlayerState, t: Tuning, events: GameEvent[]): boolean {
+  if (p.jumpBuffer <= 0 || !(p.grounded || p.coyote > 0)) return false;
   const b = p.body;
   b.vy = -jumpVelocity(t, Math.abs(b.vx) > t.walkSpeed + 1);
   p.speedCap = Math.max(t.walkSpeed, Math.abs(b.vx));
@@ -175,6 +179,7 @@ function tryJump(p: PlayerState, t: Tuning, events: GameEvent[]): void {
   p.coyote = 0;
   p.jumpBuffer = 0;
   events.push({ type: 'jump' });
+  return true;
 }
 
 /** Stößt von der Wand ab. Die Werte überschreiben die Beschleunigung dieses Schritts. */
