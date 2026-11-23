@@ -12,9 +12,15 @@ export const KEYMAP: Readonly<Record<string, keyof Held | 'pause'>> = {
   Escape: 'pause', KeyP: 'pause',
 };
 
+/** Tastenkombinationen des Browsers/Systems (Cmd/Strg/Alt) gehören nicht dem Spiel. */
+export function isShortcut(e: { metaKey: boolean; ctrlKey: boolean; altKey: boolean }): boolean {
+  return e.metaKey || e.ctrlKey || e.altKey;
+}
+
 export class KeyboardSource {
   private down = new Set<string>();
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    if (isShortcut(e)) return;
     const m = KEYMAP[e.code];
     if (!m) return;
     e.preventDefault();
@@ -22,6 +28,7 @@ export class KeyboardSource {
     this.down.add(e.code);
   };
   private readonly onKeyUp = (e: KeyboardEvent): void => { this.down.delete(e.code); };
+  private readonly onVisibility = (): void => { if (this.target.document.visibilityState === 'hidden') this.down.clear(); };
   private readonly onBlur = (): void => { this.down.clear(); };
 
   private readonly target: Window;
@@ -33,6 +40,7 @@ export class KeyboardSource {
     target.addEventListener('keydown', this.onKeyDown);
     target.addEventListener('keyup', this.onKeyUp);
     target.addEventListener('blur', this.onBlur);
+    target.document.addEventListener('visibilitychange', this.onVisibility);
   }
 
   read(): Held {
@@ -48,6 +56,7 @@ export class KeyboardSource {
     this.target.removeEventListener('keydown', this.onKeyDown);
     this.target.removeEventListener('keyup', this.onKeyUp);
     this.target.removeEventListener('blur', this.onBlur);
+    this.target.document.removeEventListener('visibilitychange', this.onVisibility);
     this.down.clear();
   }
 }

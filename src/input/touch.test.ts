@@ -19,6 +19,9 @@ describe('resolveTouch', () => {
     const j: TouchPoint = { id: 2, x: L.jump.cx, y: L.jump.cy, zone: 'jump' };
     expect(resolveTouch([at(-20, 0), j], L)).toMatchObject({ left: true, jump: true });
   });
+  it('zweiter Steuerkreuz-Finger wird ignoriert', () => {
+    expect(resolveTouch([at(20, 0, 'dpad', 1), at(-20, 0, 'dpad', 2)], L)).toMatchObject({ right: true, left: false });
+  });
   it('Aktionsfinger setzt action', () => {
     const a: TouchPoint = { id: 3, x: L.action.cx, y: L.action.cy, zone: 'action' };
     expect(resolveTouch([a], L).action).toBe(true);

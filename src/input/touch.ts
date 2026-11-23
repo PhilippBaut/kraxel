@@ -22,10 +22,13 @@ export function zoneAt(x: number, y: number, l: Layout, actionVisible: boolean):
 
 export function resolveTouch(points: readonly TouchPoint[], l: Layout): Held {
   const h = emptyHeld();
+  let dpadSeen = false; // nur der älteste Steuerkreuz-Finger zählt
   for (const p of points) {
     if (p.zone === 'jump') h.jump = true;
     else if (p.zone === 'action') h.action = true;
     else if (p.zone === 'dpad') {
+      if (dpadSeen) continue;
+      dpadSeen = true;
       const dx = p.x - l.dpad.cx;
       const dy = p.y - l.dpad.cy;
       if (Math.hypot(dx, dy) < l.dpad.r * DEAD_ZONE) continue;
@@ -74,15 +77,23 @@ export class PointerTracker {
       ['pointermove', (e) => this.onMove(e)],
       ['pointerup', (e) => this.onUp(e)],
       ['pointercancel', (e) => this.onUp(e)],
+      ['lostpointercapture', (e) => this.onUp(e)],
     ];
     for (const [t, h] of this.handlers) el.addEventListener(t, h as EventListener);
+    window.addEventListener('blur', this.resetAll);
+    document.addEventListener('visibilitychange', this.onVisibility);
   }
+
+  private readonly resetAll = (): void => { this.book.reset(); };
+  private readonly onVisibility = (): void => { if (document.visibilityState === 'hidden') this.book.reset(); };
 
   onTap(cb: (x: number, y: number) => void): void { this.tapCbs.push(cb); }
   onFirstTouch(cb: () => void): void { this.touchCbs.push(cb); }
 
   dispose(): void {
     for (const [t, h] of this.handlers) this.el.removeEventListener(t, h as EventListener);
+    window.removeEventListener('blur', this.resetAll);
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.book.reset();
   }
 
