@@ -21,6 +21,20 @@ describe('sprites', () => {
     expect(KRAXEL_FRAMES).toContain('kraxelPound');
   });
 
+  it('Umrandung wird nirgends am Rand abgeschnitten (kein Farbpixel am Rasterrand)', () => {
+    const TILES = new Set(['groundTop', 'groundFill']); // Kacheln füllen die Zelle bis zum Rand
+    const bad: string[] = [];
+    for (const [name, g] of Object.entries(S)) {
+      if (TILES.has(name)) continue;
+      const h = g.length, w = g[0].length;
+      g.forEach((row, y) => row.forEach((c, x) => {
+        const edge = x === 0 || y === 0 || x === w - 1 || y === h - 1;
+        if (edge && c !== '.' && c !== 'o') bad.push(`${name} ${x},${y}:${c}`);
+      }));
+    }
+    expect(bad).toEqual([]);
+  });
+
   it('Gipfelkreuz ist 5 Kacheln hoch', () => {
     expect(S.cross.length).toBe(80);
   });

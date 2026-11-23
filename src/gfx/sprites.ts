@@ -118,13 +118,14 @@ const FRAMES: Record<KraxelFrame, FrameDef> = {
       'ooooo.....ooooo.'],
   },
   kraxelRun2: {
-    hat: [1, -1], beanie: BEANIE_RUN,
-    body: [_, _, _, _, _, _,
+    // Kopf bleibt auf Höhe von Run1 (der Helm braucht Zeile 0 für seine Umrandung),
+    // der Körper ist eine Zeile kürzer: Bein vorn gestreckt, Stiefel hinten angehoben.
+    hat: [1, 0], beanie: BEANIE_RUN,
+    body: [...NO_HAT,
       '..oooBBBBWWBWWo.',
       '..oKoBBBBWEBWEo.',
       '..oKoBBBBWEBWEo.',
       '..oKoBBBRBBEBRo.',
-      '.okoBBBBBBBBBo..',
       '.okobBBBBBBBbo..',
       '.oooobbbbbbbo...',
       '.oFFFoooFFo.....',
@@ -162,19 +163,20 @@ const FRAMES: Record<KraxelFrame, FrameDef> = {
       '...ooooo..oooooo'],
   },
   kraxelWall: {
-    // Gezeichnet mit der Wand links (bis Spalte 2), danach gespiegelt: Im fertigen Bild
-    // liegt die Wand rechts ab Spalte 13, Kraxel schaut nach links von ihr weg.
-    hat: [2, 0], mirror: true,
+    // Gezeichnet mit der Wand links, danach gespiegelt: Im fertigen Bild liegt die Wand
+    // rechts ab Spalte 13, Rucksack, Hand und Stiefel tragen dort ihre Umrandung, und
+    // Kraxel schaut nach links von ihr weg. Vorn bleibt Spalte 0 frei für die Helmkrempe.
+    hat: [1, 0], mirror: true,
     body: [...NO_HAT,
-      '...oooBBBBWWBWWo',
-      '...oKoBBBBWEBWEo',
-      '...oKoBBBBWEBWEo',
-      '...oKoBBBRBBEBRo',
-      '...okoBBBBBBBBBo',
-      '...okobBBBBBBBbo',
-      '..ooFFobbbbbbbo.',
-      '..oFFFo.oFFo....',
-      '..ooooo.oooo....'],
+      '..oooBBBBWWBWWo.',
+      '..oKoBBBBWEBWEo.',
+      '..oKoBBBBWEBWEo.',
+      '..oKoBBBRBBEBRo.',
+      '..okoBBBBBBBBBo.',
+      '..okobBBBBBBBbo.',
+      '..oFFobbbbbbbo..',
+      '..oFFFo..oFFo...',
+      '..ooooo..oooo...'],
     front: [_, _,
       '...oo...........',
       '..oBBo..........',
@@ -350,7 +352,8 @@ function beetles(): { beetle: PixelGrid; beetleFlat: PixelGrid } {
 
 function snail(): PixelGrid {
   const g = grid(16, 16);
-  cap(g, 2.5, 13, 14.5, 13, 1.5, 'T'); cap(g, 2.5, 13, 2.5, 9, 1.6, 'T');
+  // Schwanz 1 px kürzer als im Entwurf, damit seine Umrandung in das 16er-Raster passt
+  cap(g, 2.5, 13, 13.5, 13, 1.5, 'T'); cap(g, 2.5, 13, 2.5, 9, 1.6, 'T');
   cap(g, 2, 8.5, 1.5, 6, 0.6, 'T'); cap(g, 4, 8.5, 4.5, 6, 0.6, 'T');
   each(g, (c, x, y) => { if (c === 'T' && y === 14) g[y][x] = 't'; });
   ell(g, 9.5, 8.5, 4.6, 4.6, 'U');
