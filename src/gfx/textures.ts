@@ -3,6 +3,7 @@ import type Phaser from 'phaser';
 import { buildSprites } from './sprites.ts';
 import { bakeGrid, toCanvas, canvas2d } from './bake.ts';
 import { BASE, DARK, WORLDS } from './palette.ts';
+import { buildGroundTileset } from './tiles.ts';
 import { buildBackgroundLayers } from './background.ts';
 import { drawDpad, drawRoundButton, type DirHeld } from './buttons.ts';
 import { ADVANCE, FONT5, GLYPH_H, GLYPH_W } from './font.ts';
@@ -48,6 +49,7 @@ export function registerTextures(scene: Phaser.Scene, world: number): void {
   for (const [name, g] of Object.entries(buildSprites())) {
     addCanvas(scene, name, toCanvas(bakeGrid(g, GROUND_TILES.has(name) ? tilePal : BASE)));
   }
+  addCanvas(scene, `tiles-w${world}`, toCanvas(bakeGrid(buildGroundTileset(w), tilePal)));
   const bg = buildBackgroundLayers(w);
   addCanvas(scene, 'bg-sky', bg.sky);
   addCanvas(scene, 'bg-far', bg.far);

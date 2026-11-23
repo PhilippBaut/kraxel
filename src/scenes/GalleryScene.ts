@@ -6,6 +6,7 @@ import { PixelText } from '../gfx/pixel-text.ts';
 import { FONT5, GLYPH_H, textWidth } from '../gfx/font.ts';
 import { DARK } from '../gfx/palette.ts';
 import { BUTTON_RADII, dpadKey, roundButtonKey } from '../gfx/textures.ts';
+import { GROUND_TILES } from '../gfx/tiles.ts';
 import { MAX_VIEW_W, VIEW_H } from '../config.ts';
 import { TEXT } from '../ui-text.ts';
 
@@ -24,6 +25,7 @@ export class GalleryScene extends Phaser.Scene {
     y = this.kraxelTable(y) + 8;
     y = this.spriteFlow(y) + 8;
     y = this.buttons(y) + 8;
+    y = this.tileset(y) + 8;
     y = this.fontSample(y) + 8;
     y = this.background(y) + PAD;
     this.scale.setGameSize(W, y);
@@ -81,6 +83,13 @@ export class GalleryScene extends Phaser.Scene {
       y += r * 2 + 2 + 6;
     });
     return y;
+  }
+
+  /** Der Bodenstreifen mit allen Randvarianten, doppelt groß, darunter die Namen. */
+  private tileset(top: number): number {
+    const img = this.image(PAD, top, 'tiles-w1', 2);
+    GROUND_TILES.forEach((n, i) => new PixelText(this, PAD + i * 32, top + img.displayHeight + 3, n.toUpperCase(), 'dark'));
+    return top + img.displayHeight + 3 + GLYPH_H;
   }
 
   /** Alle Glyphen dunkel auf hell, alle Texte aus ui-text weiß auf dunkel. */
