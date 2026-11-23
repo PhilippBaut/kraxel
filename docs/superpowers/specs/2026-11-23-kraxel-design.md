@@ -21,6 +21,16 @@ Kraxel ist ein 2D-Jump-'n'-Run für den Handy-Browser. Es wird über GitHub Page
 
 Erfolg heißt: Man startet das Spiel am eigenen Handy vom Home-Bildschirm, die Steuerung reagiert sofort, das Springen fühlt sich richtig gut an, und man will das Level nochmal spielen, um alle Edelweiß zu finden oder schneller zu sein.
 
+**Herkunft:** Dieses Dokument baut auf der ursprünglichen Projektidee des Repo-Inhabers auf (nicht im Repo). Alles daraus, was für die Umsetzung zählt, ist hier übernommen. Ihr Fahrplan **[entschieden]** lautete:
+1. Prototyp lokal: eine Figur, ein Level in der Graslandschaft, Steuerung hochkant und quer. Ziel: Springen muss sich gut anfühlen.
+2. Graslandschaft ausbauen: mehrere Level, Gegner, erste Gimmicks.
+3. Weitere Welten nacheinander: Eis, Sand, Sumpf, Wolken, Vulkan, jede mit eigenen Gimmicks.
+4. Feinschliff lokal: Grafiken, Sounds, Menü, Speicherstand, Bestzeiten.
+5. Multiplayer: Online-Wettrennen zu zweit per Raumcode.
+6. Optional später: eigener Server, mehr Spieler, Bestenliste.
+
+Die Meilensteine in Abschnitt 9 folgen diesem Fahrplan. Einige Punkte aus Schritt 2 und 4 ziehen dabei schon in Meilenstein 1 vor.
+
 ## 2. Ziele, Nicht-Ziele, Anti-Ziele
 
 **Ziele**
@@ -236,6 +246,13 @@ Ziel: Man spielt auf dem eigenen Handy über die GitHub-Pages-Adresse einen komp
 - Tests für Bewegung, Kollision, Kisten und Level-Einlesen.
 
 Nicht in Meilenstein 1: Weltkarte, weitere Level, Steinschleuder, Gleitschirm, Steigeisen, Enzian, Musik, Offline-Modus.
+
+**Reihenfolge mit Testhalt** **[Festlegung]**: Level 1-1 hängt an den Bewegungswerten. Grubenbreiten, Wandsprung-Schächte und das Edelweiß, das man nur per Kraxeln erreicht, passen nur zu bestimmten Sprung- und Kletterhöhen. Deshalb:
+1. Zuerst Projekt, Veröffentlichung, Steuerung und Kraxels Bewegung auf einem **Übungsplatz**: einer kleinen Testfläche mit Stufen, Gruben verschiedener Breite, einem Wandschacht, einer Kletterwand, Kisten und Felsblöcken. Er wird auf GitHub Pages veröffentlicht.
+2. **Testhalt:** Der Repo-Inhaber probiert den Übungsplatz am eigenen Handy aus, hochkant und quer, und gibt Rückmeldung. Gemeinsam werden die Werte im Debug-Modus eingestellt und danach festgeschrieben. Kommt keine Rückmeldung, geht es mit den Startwerten weiter, und der Level wird später angepasst.
+3. Danach Level 1-1, Gegner, Bildschirme, Ton und Speicherstand auf Basis der festen Werte. Am Ende folgt ein zweiter Test am Handy.
+
+Abnahme: Es läuft auf dem Handy des Repo-Inhabers vom Home-Bildschirm aus. Vorher wird es im eingebauten Browser in Handy-Größe geprüft, hochkant und quer.
 
 ### Spätere Meilensteine (Grobplan)
 2. **Graswelt komplett:** Weltkarte, Level 1-2 bis 1-4, Festung mit Zwischengegner, Steinschleuder und Enzian, Game Over auf der Weltkarte, Musik.
