@@ -1,0 +1,544 @@
+<style>
+  .kx-scene { width:100%; display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
+  .cards .card-image { aspect-ratio:auto; display:block; background:#000; }
+  .kx-items { display:flex; flex-wrap:wrap; gap:14px; }
+  .kx-item { display:flex; flex-direction:column; align-items:center; gap:6px; width:88px; }
+  .kx-item canvas { width:64px; height:64px; padding:8px; box-sizing:content-box; image-rendering:pixelated; image-rendering:crisp-edges;
+    background:linear-gradient(#7cc4ff,#d3f0ff); border-radius:10px; }
+  .kx-item canvas.tall { height:128px; }
+  .kx-item span { font-size:12px; line-height:1.25; color:var(--text-secondary); text-align:center; }
+  .kx-worlds { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
+  .kx-world canvas { width:100%; display:block; border-radius:8px; image-rendering:pixelated; image-rendering:crisp-edges; }
+  .kx-world span { display:block; font-size:13px; margin-top:5px; color:var(--text-secondary); }
+  .kx-phones { display:flex; flex-wrap:wrap; gap:32px; align-items:flex-end; }
+  .kx-phone { background:#0d0d10; border-radius:30px; padding:9px; box-shadow:0 10px 30px rgba(0,0,0,.28); }
+  .kx-phone.portrait { width:230px; }
+  .kx-phone.landscape { width:min(100%, 560px); }
+  .kx-phone canvas { display:block; width:100%; border-radius:22px; image-rendering:pixelated; image-rendering:crisp-edges; }
+  .kx-cap { font-size:13px; color:var(--text-secondary); margin-top:10px; max-width:560px; }
+  .kx-note { font-size:13px; color:var(--text-secondary); }
+  .kx-pill { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; background:var(--bg-tertiary); color:var(--text-secondary); margin-left:6px; vertical-align:middle; }
+</style>
+
+<h2>Kraxel · Grafik-Entwürfe</h2>
+<p class="subtitle">Alles auf dieser Seite ist selbst gezeichnete Pixelgrafik, Pixel für Pixel im Code entstanden, nichts kopiert. Klick auf den Stil, der dir besser gefällt. Alles darunter (Figuren, Welten, Handy) wechselt mit.</p>
+
+<div class="section">
+  <div class="cards">
+    <div class="card selected" data-choice="stil-a" onclick="toggleSelect(this); kxSetStyle('a')">
+      <div class="card-image"><canvas class="kx-scene" id="sceneA" width="256" height="144"></canvas></div>
+      <div class="card-body">
+        <h3>A · Bunt &amp; knackig</h3>
+        <p>Kräftige Farben, dunkle Umrisse, klare Farbstufen am Himmel. Liest sich auf kleinem Handy-Bildschirm sehr deutlich. Am nächsten am DS-Gefühl.</p>
+      </div>
+    </div>
+    <div class="card" data-choice="stil-b" onclick="toggleSelect(this); kxSetStyle('b')">
+      <div class="card-image"><canvas class="kx-scene" id="sceneB" width="256" height="144"></canvas></div>
+      <div class="card-body">
+        <h3>B · Weich &amp; warm</h3>
+        <p>Sanftere Farben, Umrisse in der dunkleren Eigenfarbe statt schwarz, weicher Himmelsverlauf. Gemütlicher, moderner Indie-Look.</p>
+      </div>
+    </div>
+  </div>
+  <p class="kx-note" style="margin-top:10px">In der Szene läuft eine kleine Vorschau: Kraxel stößt eine Kraxelkiste an, ein Kristall springt heraus, dann ein Sprung auf einen Krabbelkäfer.</p>
+</div>
+
+<div class="section">
+  <h3>Figur, Gegenstände, Gegner <span class="kx-pill" id="stylePill1">Stil A</span></h3>
+  <div class="kx-items" id="items"></div>
+</div>
+
+<div class="section">
+  <h3>Die sechs Welten: Farbstimmung <span class="kx-pill" id="stylePill2">Stil A</span></h3>
+  <p class="kx-note" style="margin-bottom:10px">Gleiche Bausteine, eigene Farben und Hintergründe pro Welt. So bleibt alles aus einem Guss.</p>
+  <div class="kx-worlds" id="worlds"></div>
+</div>
+
+<div class="section">
+  <h3>So sieht es am Handy aus <span class="kx-pill" id="stylePill3">Stil A</span></h3>
+  <div class="kx-phones">
+    <div style="width:230px">
+      <div class="kx-phone portrait"><canvas id="phoneP" width="160" height="346"></canvas></div>
+      <p class="kx-cap">Hochkant: Spielwelt oben, Steuerkreuz und Sprungknopf unten. Der kleine rote Knopf ist für die Steinschleuder und leuchtet erst, wenn man sie hat.</p>
+    </div>
+    <div style="flex:1; min-width:280px">
+      <div class="kx-phone landscape"><canvas id="phoneL" width="312" height="144"></canvas></div>
+      <p class="kx-cap">Quer: Vollbild, man sieht fast doppelt so viel von der Welt. Die Knöpfe sind halbtransparent unter den Daumen. Die Knöpfe leuchten passend zur Vorschau auf.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+/* ================= Farben ================= */
+function hex(h){ const n=parseInt(h.slice(1),16); return [n>>16&255,n>>8&255,n&255]; }
+function rgb(a){ return '#'+a.map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join(''); }
+function mix(a,b,t){ const A=hex(a),B=hex(b); return rgb(A.map((v,i)=>v+(B[i]-v)*t)); }
+
+const BASE = {
+  o:'#1b1230', H:'#2ec4b6', h:'#a6f5e9', S:'#ffd23f', s:'#e3a51d', P:'#fffaf0', B:'#ffb36b', b:'#e5874a',
+  W:'#ffffff', E:'#1b1230', R:'#ff7b9c', K:'#8a5a3b', k:'#5e3a24', F:'#5a3a2a',
+  G:'#5fd35a', g:'#33a852', l:'#b6f27a', D:'#c27c45', d:'#8f5530', p:'#e3a56f',
+  C:'#c98a4b', c:'#8c5a2b', M:'#b8c2d6', Y:'#ffd23f', y:'#e09a1b', Z:'#ffffff',
+  X:'#5ee7ff', x:'#2a9fd6', V:'#ffffff', v:'#c9d3e6', A:'#e8465a', a:'#a8253e', L:'#4b3a66',
+  T:'#c9e86a', t:'#8fbf3c', U:'#ff9a3c', u:'#c4621f', I:'#fff3d6', Q:'#ffcf33', q:'#d99a12',
+  J:'#a8693a', j:'#6e4122', m:'#e6ecf5', n:'#6b7a99', O:'#ff6a2a', w:'#9aa6bd'
+};
+const KEEP = {W:1,Z:1,V:1,P:1,E:1,o:1};
+function soften(c){ return mix(c,'#fff1df',0.24); }
+const STYLES = {
+  a:{ id:'a', pal:BASE, selout:false, smooth:false, dark:'#1b1230', soft:c=>c },
+  b:{ id:'b', pal:Object.fromEntries(Object.entries(BASE).map(([k,v])=>[k, KEEP[k]?v:soften(v)])), selout:true, smooth:true, dark:'#33223f', soft:soften }
+};
+STYLES.b.pal.o='#4a3550'; STYLES.b.pal.E='#3a2a48';
+
+/* ================= Raster-Helfer ================= */
+function grid(w,h){ return Array.from({length:h},()=>Array(w).fill('.')); }
+function strs(rows){ const w=Math.max(...rows.map(r=>r.length)); return rows.map(r=>r.padEnd(w,'.').split('')); }
+function ell(g,cx,cy,rx,ry,ch,cond){ for(let y=0;y<g.length;y++)for(let x=0;x<g[0].length;x++){ const dx=(x+.5-cx)/rx, dy=(y+.5-cy)/ry; if(dx*dx+dy*dy<=1&&(!cond||cond(x,y))) g[y][x]=ch; } }
+function cap(g,x1,y1,x2,y2,r,ch){ const vx=x2-x1, vy=y2-y1, L=vx*vx+vy*vy||1; for(let y=0;y<g.length;y++)for(let x=0;x<g[0].length;x++){ const px=x+.5, py=y+.5; let t=((px-x1)*vx+(py-y1)*vy)/L; t=Math.max(0,Math.min(1,t)); const dx=px-(x1+vx*t), dy=py-(y1+vy*t); if(dx*dx+dy*dy<=r*r) g[y][x]=ch; } }
+function rect(g,x1,y1,x2,y2,ch){ for(let y=y1;y<=y2;y++)for(let x=x1;x<=x2;x++) if(g[y]&&g[y][x]!==undefined) g[y][x]=ch; }
+function put(g,pts,ch){ for(const [x,y] of pts) if(g[y]&&g[y][x]!==undefined) g[y][x]=ch; }
+function line(g,x0,y0,x1,y1,ch){ let dx=Math.abs(x1-x0), sx=x0<x1?1:-1, dy=-Math.abs(y1-y0), sy=y0<y1?1:-1, e=dx+dy; for(;;){ if(g[y0]&&g[y0][x0]==='.') g[y0][x0]=ch; if(x0===x1&&y0===y1)break; const e2=2*e; if(e2>=dy){e+=dy;x0+=sx;} if(e2<=dx){e+=dx;y0+=sy;} } }
+function outline(g){ const o=g.map(r=>r.slice()); for(let y=0;y<g.length;y++)for(let x=0;x<g[0].length;x++){ if(g[y][x]!=='.')continue; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const c=g[y+dy]&&g[y+dy][x+dx]; if(c&&c!=='.'&&c!=='o'){ o[y][x]='o'; break; } } } return o; }
+function each(g,fn){ for(let y=0;y<g.length;y++)for(let x=0;x<g[0].length;x++) fn(g[y][x],x,y); }
+
+/* ================= Sprites ================= */
+const SPR = {};
+const KR_TOP = [
+  "......oo........",
+  ".....oPPo.......",
+  ".....oPPoooo....",
+  ".....oHhhHHo....",
+  "....oHhHHHHHo...",
+  "...oSSSSSSSSSo..",
+  "...ossssssssso..",
+  ".oooBBBBWWBWWo..",
+  ".oKoBBBBWEBWEo..",
+  ".oKoBBBBWEBWEo..",
+  ".oKoBBBRBBEBRo..",
+  ".okoBBBBBBBBBo..",
+  ".okobBBBBBBBbo..",
+  ".oooobbbbbbbo..."];
+SPR.kraxel = strs([...KR_TOP, "...oFFFoooFFFo..", "...ooooo.ooooo.."]);
+SPR.kraxelB = strs([...KR_TOP, "....oFFFoFFFo...", "....ooooooooo..."]);
+SPR.kraxelJ = strs([...KR_TOP, "..oFFFo..oFFFo..", "..ooooo..ooooo.."]);
+
+SPR.crystal = strs([
+  "................","................","................",
+  ".......oo.......","......oZXo......",".....oZXXxo.....","....oZXXXxxo....",
+  "....oXXXXxxo....","....oXXXxxxo....",".....oXXxxo.....","......oXxo......",".......oo.......",
+  "................","................","................","................"]);
+
+(function crate(){
+  const g=grid(16,16);
+  rect(g,0,0,15,15,'o'); rect(g,1,1,14,14,'C');
+  for(const y of [3,7,11]) rect(g,1,y,14,y,'c');
+  rect(g,1,14,14,14,'c');
+  put(g,[[1,1],[2,1],[1,2],[13,1],[14,1],[14,2],[1,13],[1,14],[2,14],[14,13],[13,14],[14,14]],'M');
+  const em=strs(["....oo....","...oZZo...","..oZZZZo..",".oYYZYyyo.","oYYYYYyyyo","oooooooooo"]);
+  SPR.crateUsed = g.map(r=>r.map(c=>c==='C'?'c':c==='M'?'w':c));
+  const u=SPR.crateUsed; rect(u,1,1,14,14,'c'); for(const y of [3,7,11]) rect(u,1,y,14,y,'j'); rect(u,1,14,14,14,'j');
+  put(u,[[2,2],[13,2],[2,13],[13,13]],'w');
+  const e=g.map(r=>r.slice()); each(em,(c,x,y)=>{ if(c!=='.') e[y+4][x+3]=c; });
+  SPR.crate=e;
+})();
+
+(function edel(){
+  const g=grid(16,16);
+  for(let k=0;k<8;k++){ const a=k*Math.PI/4 - Math.PI/2, r=k%2?3.3:4.2;
+    const cx=8+Math.cos(a)*r, cy=8+Math.sin(a)*r;
+    for(let y=0;y<16;y++)for(let x=0;x<16;x++){ const px=x+.5-cx, py=y+.5-cy; const u=px*Math.cos(a)+py*Math.sin(a), v=-px*Math.sin(a)+py*Math.cos(a);
+      const ru=k%2?2.0:2.9, rv=k%2?1.2:1.5; if((u/ru)**2+(v/rv)**2<=1) g[y][x]=(x+y>16)?'v':'V'; } }
+  ell(g,8,8,2.3,2.3,'Y'); put(g,[[8,8],[9,9]],'y');
+  SPR.edel=outline(g);
+})();
+
+(function beetle(){
+  const g=grid(16,16);
+  ell(g,9.5,13,5.5,7.5,'A',(x,y)=>y<=12);
+  each(g,(c,x,y)=>{ if(c==='A'&&x>=12&&y>=9) g[y][x]='a'; });
+  for(let y=6;y<=12;y++) if(g[y][9]!=='.') g[y][9]='a';
+  put(g,[[6,7],[7,7],[6,8]],'Z'); put(g,[[11,8],[12,8],[7,10],[6,11]],'L');
+  ell(g,3.5,11,2.5,2.5,'L'); put(g,[[3,10]],'W'); put(g,[[2,10]],'E');
+  put(g,[[2,7],[3,8]],'L');
+  put(g,[[5,13],[9,13],[13,13]],'L');
+  SPR.beetle=outline(g);
+  const s=grid(16,16); ell(s,8.5,15,6.5,3.6,'A',(x,y)=>y<=14); each(s,(c,x,y)=>{ if(c==='A'&&x>=11) s[y][x]='a'; }); put(s,[[6,12],[7,12]],'Z'); put(s,[[4,13]],'W');
+  SPR.beetleFlat=outline(s);
+})();
+
+(function snail(){
+  const g=grid(16,16);
+  cap(g,2.5,13,14.5,13,1.5,'T'); cap(g,2.5,13,2.5,9,1.6,'T');
+  cap(g,2,8.5,1.5,6,.6,'T'); cap(g,4,8.5,4.5,6,.6,'T');
+  each(g,(c,x,y)=>{ if(c==='T'&&y===14) g[y][x]='t'; });
+  ell(g,9.5,8.5,4.6,4.6,'U');
+  each(g,(c,x,y)=>{ if(c!=='U')return; const d=Math.hypot(x+.5-9.5,y+.5-8.5); if((d>2.1&&d<3.0&&!(x<9&&y>8)) || d<1) g[y][x]='u'; else if(x+y>20) g[y][x]='u'; });
+  put(g,[[6,3],[6,2],[9,2],[9,1],[10,2],[13,3],[13,2]],'I');
+  put(g,[[1,5],[4,5]],'W'); put(g,[[1,6],[4,6]],'E');
+  SPR.snail=outline(g);
+})();
+
+(function helm(){
+  const g=grid(16,16);
+  ell(g,8,10.5,6,6.5,'Q',(x,y)=>y<=9);
+  rect(g,1,10,14,10,'q'); rect(g,3,11,12,11,'q');
+  each(g,(c,x,y)=>{ if(c==='Q'&&x>=10&&y>=6) g[y][x]='q'; });
+  put(g,[[5,5],[6,4],[4,6],[4,7]],'Z');
+  put(g,[[7,5],[8,5]],'M'); put(g,[[7,6],[8,6]],'Z');
+  SPR.helm=outline(g);
+})();
+
+(function sling(){
+  const g=grid(16,16);
+  cap(g,5,3,6.6,8.6,1.1,'J'); cap(g,11,3,9.4,8.6,1.1,'J'); ell(g,8,9.4,2.6,1.6,'J'); cap(g,8,9,8,13.6,1.3,'J');
+  each(g,(c,x,y)=>{ if(c==='J'&&(x>=9&&y>=9 || x===11||x===10&&y<6)) g[y][x]='j'; });
+  const o=outline(g);
+  o[3][6]='A'; o[3][10]='A'; o[3][7]='K'; o[3][8]='K'; o[3][9]='K'; o[2][7]='o'; o[2][8]='o'; o[2][9]='o';
+  SPR.sling=o;
+})();
+
+(function glider(){
+  const g=grid(16,16);
+  each(g,(c,x,y)=>{ const dx=x+.5-8, dy=y+.5-13, e=Math.hypot(dx/6.8,dy/8); if(e>=.74&&e<=1&&y<=8){ const seg=Math.floor((x+1)/3); g[y][x]= e<.86 ? (seg%2?'y':'x') : (seg%2?'Y':'X'); } });
+  rect(g,7,13,8,14,'K');
+  const o=outline(g);
+  line(o,3,9,7,12,'n'); line(o,12,9,8,12,'n'); line(o,6,8,7,12,'n'); line(o,9,8,8,12,'n');
+  SPR.glider=o;
+})();
+
+(function crampon(){
+  const g=grid(16,16);
+  rect(g,4,2,8,10,'F'); rect(g,4,7,12,10,'F'); g[7][12]='.'; rect(g,5,3,5,7,'K'); rect(g,9,8,11,8,'K');
+  rect(g,4,5,8,5,'A'); put(g,[[7,5]],'Y');
+  rect(g,3,11,13,11,'M'); rect(g,3,11,13,11,'m');
+  for(const sx of [4,7,10]) put(g,[[sx,12],[sx+1,12],[sx,13]],'M');
+  put(g,[[13,12],[14,12],[14,11]],'M');
+  SPR.crampon=outline(g);
+})();
+
+(function enzian(){
+  const g=grid(16,16);
+  cap(g,8,14.5,8,10.5,.8,'g');
+  ell(g,5.3,12.6,2.3,1.1,'G'); ell(g,10.7,12.1,2.3,1.1,'G');
+  for(let y=3;y<=9;y++){ const hw=1.5+(y-3)*.48; for(let x=0;x<16;x++) if(Math.abs(x+.5-8)<=hw) g[y][x]=(x>=9?'y':'Y'); }
+  put(g,[[4,10],[7,10],[8,10],[11,10]],'Y'); put(g,[[7,9],[8,9]],'O'); put(g,[[7,4],[6,6],[6,7]],'Z');
+  const o=outline(g); put(o,[[2,3],[13,5],[12,1]],'Z');
+  SPR.enzian=o;
+})();
+
+(function stone(){
+  const g=grid(16,16);
+  rect(g,0,0,15,15,'o'); rect(g,1,1,14,14,'M'); rect(g,1,1,14,1,'m'); rect(g,1,1,1,14,'m'); rect(g,1,14,14,14,'n'); rect(g,14,1,14,14,'n');
+  put(g,[[5,2],[5,3],[6,4],[6,5],[5,6],[9,9],[10,10],[11,10],[12,11],[3,10],[4,11],[9,4],[10,4]],'n');
+  put(g,[[6,3],[7,5],[10,9],[4,10]],'m');
+  SPR.stone=g;
+})();
+
+(function cross(){
+  const g=grid(16,32);
+  rect(g,7,3,8,28,'J'); rect(g,8,3,8,28,'j'); rect(g,2,9,13,10,'J'); rect(g,2,10,13,10,'j');
+  rect(g,9,4,14,4,'h'); rect(g,9,5,13,5,'H'); rect(g,9,6,11,6,'H'); put(g,[[9,7]],'H');
+  ell(g,8,31,5.5,3.2,'M',(x,y)=>y<=30); put(g,[[5,29],[6,28]],'m'); put(g,[[10,29],[11,30]],'n');
+  SPR.cross=outline(g);
+})();
+
+/* HUD-Mini-Icons */
+SPR.iCrystal = strs(["...o...","..oXo..",".oZXxo.","oZXXxxo",".oXxxo.","..oxo..","...o..."]);
+SPR.iEdel = strs(["..o.o..",".oVoVo.","oVVYVVo",".oYYYo.","oVVYVVo",".oVoVo.","..o.o.."]);
+SPR.iEdelOff = SPR.iEdel.map(r=>r.map(c=>c==='V'||c==='Y'?'w':c));
+SPR.iHead = strs([".oooooo.","oHHHHHHo","oSSSSSSo","oBWEBWEo","oBBBBBBo",".oooooo."]);
+
+/* Wolke */
+(function(){ const g=grid(36,20); ell(g,18,11,10,7.5,'Z'); ell(g,9,14,7,5,'Z'); ell(g,27,14,7.5,5,'Z'); ell(g,14,8,6,5,'Z'); each(g,(c,x,y)=>{ if(c==='Z'&&y>=15) g[y][x]='v'; }); SPR.cloud=g; })();
+
+/* Boden-Kacheln */
+const DEPTH=[5,5,6,6,5,4,4,5,6,6,6,5,4,4,5,5];
+function dirtAt(x,y,seed){ const peb=seed?[[2,4],[11,2],[6,9],[13,11],[1,13]]:[[3,9],[10,7],[12,13],[5,13],[8,11]];
+  for(const [px,py] of peb){ if(x===px&&y===py||x===px+1&&y===py) return 'p'; if(x===px&&y===py+1||x===px+1&&y===py+1) return 'd'; }
+  if((x*7+y*3+(seed?5:0))%23===0) return 'd'; return 'D'; }
+SPR.groundTop = (function(){ const g=grid(16,16); for(let x=0;x<16;x++){ const d=DEPTH[x]; for(let y=0;y<16;y++){ g[y][x]= y===0?'o': y===1?'l': y<d-1?'G': y===d-1?'g': y===d?'o': dirtAt(x,y,0); } } put(g,[[3,1],[4,1],[10,1]],'G'); return g; })();
+SPR.groundFill = (function(){ const g=grid(16,16); each(g,(c,x,y)=>g[y][x]=dirtAt(x,y,1)); return g; })();
+
+/* ================= Backen (Grid -> Canvas) ================= */
+const cache=new Map();
+function sel(g,x,y,pal,st){ for(const [dx,dy] of [[0,1],[1,0],[-1,0],[0,-1]]){ const c=g[y+dy]&&g[y+dy][x+dx]; if(c&&c!=='.'&&c!=='o'&&pal[c]) return mix(pal[c],st.dark,0.52); } return pal.o; }
+function bake(name,st,over,overId){
+  const key=name+'|'+st.id+'|'+(overId||''); if(cache.has(key)) return cache.get(key);
+  const g=SPR[name], h=g.length, w=g[0].length, c=document.createElement('canvas'); c.width=w; c.height=h;
+  const cx=c.getContext('2d'), im=cx.createImageData(w,h), pal=over?Object.assign({},st.pal,over):st.pal;
+  each(g,(ch,x,y)=>{ if(ch==='.')return; const col=(ch==='o'&&st.selout)?sel(g,x,y,pal,st):(pal[ch]||'#ff00ff'); const [r,gg,b]=hex(col), i=(y*w+x)*4; im.data[i]=r; im.data[i+1]=gg; im.data[i+2]=b; im.data[i+3]=255; });
+  cx.putImageData(im,0,0); cache.set(key,c); return c;
+}
+function spr(ctx,name,st,x,y,flip,over,overId){ const c=bake(name,st,over,overId); x=Math.round(x); y=Math.round(y);
+  if(flip){ ctx.save(); ctx.translate(x+c.width,y); ctx.scale(-1,1); ctx.drawImage(c,0,0); ctx.restore(); } else ctx.drawImage(c,x,y); }
+
+/* ================= Pixel-Schrift ================= */
+const FONT={ '0':'111101101101111','1':'010110010010111','2':'111001111100111','3':'111001111001111','4':'101101111001001','5':'111100111001111','6':'111100111101111','7':'111001010010010','8':'111101111101111','9':'111101111001111','x':'000101010101000' };
+function txt(ctx,s,x,y,col,sh){ for(const pass of [0,1]){ ctx.fillStyle=pass?col:sh; const o=pass?0:1; let cx=x; for(const ch of s){ const f=FONT[ch]; if(f) for(let i=0;i<15;i++) if(f[i]==='1') ctx.fillRect(cx+(i%3)+o,y+((i/3)|0)+o,1,1); cx+=4; } } }
+
+/* ================= Welten ================= */
+const WORLDS=[
+ {name:'1 · Graslandschaft', sky:['#4aa3ff','#c4ecff'], far:'#8fb0e0', farHi:'#ffffff', shape:'mountains', h1:'#86e08f', h2:'#4cc25a', hl:'#2f8f45', cl:'#ffffff', cs:'#d2e8ff', tiles:{G:'#5fd35a',g:'#33a852',l:'#b6f27a',D:'#c27c45',d:'#8f5530',p:'#e3a56f'}},
+ {name:'2 · Eislandschaft', sky:['#6aa8ff','#eaf7ff'], far:'#a9c4ee', farHi:'#ffffff', shape:'icepeaks', h1:'#e8f4ff', h2:'#c0def8', hl:'#7fb0dd', cl:'#ffffff', cs:'#d6e8fa', tiles:{G:'#ffffff',g:'#cfe3f7',l:'#ffffff',D:'#8fd3f5',d:'#4f9fd0',p:'#d8f4ff'}, pit:'ice'},
+ {name:'3 · Wüste', sky:['#ff9a55','#ffe6ae'], far:'#de9257', farHi:'#f3be86', shape:'mesas', h1:'#f4c983', h2:'#e8ab62', hl:'#b9763b', cl:'#fff4dc', cs:'#f6d2a2', tiles:{G:'#ffdc8f',g:'#efb65b',l:'#fff1c6',D:'#e0974f',d:'#b26631',p:'#f4c088'}, pit:'sand'},
+ {name:'4 · Sumpf', sky:['#4b6b5f','#bccd9a'], far:'#43604e', farHi:'#5b7a63', shape:'swamp', h1:'#5e8a52', h2:'#3f6e3e', hl:'#28472a', cl:'#d7e3c4', cs:'#aebf98', tiles:{G:'#82b240',g:'#56802b',l:'#b4d96c',D:'#6b4f3a',d:'#47331f',p:'#8e6e51'}, pit:'poison'},
+ {name:'5 · Wolkenwelt', sky:['#80bdff','#ffd6ea'], far:'#ffffff', farHi:'#ffe6f3', shape:'cloudbanks', h1:'#ffffff', h2:'#eaf0ff', hl:'#b9c6ee', cl:'#ffffff', cs:'#e2e6fb', tiles:{G:'#ffffff',g:'#dfe7ff',l:'#ffffff',D:'#f0f4ff',d:'#c5d2f3',p:'#ffffff'}, pit:'sky'},
+ {name:'6 · Vulkan', sky:['#2b1328','#d9473a'], far:'#2a1622', farHi:'#ff7a2e', shape:'volcano', h1:'#4a2a30', h2:'#2f1a20', hl:'#170c10', cl:'#6b4b55', cs:'#4a3038', tiles:{G:'#5a4a52',g:'#3b2f36',l:'#7d6c74',D:'#3a2d33',d:'#22191d',p:'#ff6a2a'}, pit:'lava'}
+];
+function wcol(st,c){ return st.soft(c); }
+function tileOver(st,w){ const o={}; for(const k in w.tiles) o[k]=wcol(st,w.tiles[k]); return o; }
+
+function hash(i){ const s=Math.sin(i*127.1+311.7)*43758.5453; return s-Math.floor(s); }
+
+function columns(W,fn){ const tops=[]; for(let x=-1;x<=W;x++) tops.push(fn(x)); return tops; }
+function fillCols(ctx,W,bottom,tops,fill,edge){ for(let x=0;x<W;x++){ const t=tops[x+1]; if(t>=bottom) continue; const nb=Math.max(t,Math.min(bottom,Math.max(tops[x],tops[x+2]))); ctx.fillStyle=fill; ctx.fillRect(x,t,1,bottom-t); ctx.fillStyle=edge; ctx.fillRect(x,t,1,Math.max(1,nb-t)); } }
+function humps(wx,base,spacing,rmin,rmax,seed){ let top=1e9; const i0=Math.floor(wx/spacing); for(let i=i0-2;i<=i0+2;i++){ const r=rmin+hash(i+seed)*(rmax-rmin), c=i*spacing+spacing*.5+(hash(i*3+seed)-.5)*spacing*.4, d=wx-c; if(Math.abs(d)<r){ top=Math.min(top, base-Math.sqrt(r*r-d*d)); } } return Math.round(top); }
+
+function drawSky(ctx,W,H,st,w){
+  const a=wcol(st,w.sky[0]), b=wcol(st,w.sky[1]);
+  if(st.smooth){ for(let y=0;y<H;y++){ ctx.fillStyle=mix(a,b,Math.min(1,y/(H*.85))); ctx.fillRect(0,y,W,1); } }
+  else { const n=6, span=H*.82; for(let i=0;i<n;i++){ ctx.fillStyle=mix(a,b,i/(n-1)); const y0=Math.floor(i*span/n); ctx.fillRect(0,y0,W, i===n-1? H-y0 : Math.ceil(span/n)+1); } }
+}
+
+function drawBackground(ctx,W,H,st,w,camX,t){
+  const gy=H-32;
+  drawSky(ctx,W,H,st,w);
+  const far=wcol(st,w.far), farHi=wcol(st,w.farHi), farEdge=mix(far,'#1b1230',.22);
+  const px=camX*.18;
+  if(w.shape==='volcano'){
+    // Glühen am Horizont
+    for(let y=gy-30;y<gy;y++){ ctx.fillStyle=mix(wcol(st,w.sky[1]),'#ffb04a',(y-(gy-30))/30*.5); ctx.fillRect(0,y,W,1); }
+  }
+  // ferne Formen
+  if(w.shape==='mountains'||w.shape==='icepeaks'){
+    const sp=w.shape==='icepeaks'?84:110, slope=w.shape==='icepeaks'?1.25:.85, hmin=w.shape==='icepeaks'?44:34, hvar=w.shape==='icepeaks'?26:22;
+    const tops=columns(W,x=>{ const wx=x+px; let best=gy-2; const i0=Math.floor(wx/sp); for(let i=i0-1;i<=i0+2;i++){ const c=i*sp+sp*.5+(hash(i)-.5)*30, ph=hmin+hash(i+9)*hvar, h=ph-Math.abs(wx-c)*slope; if(h>0) best=Math.min(best, gy-2-Math.round(h)); } return best; });
+    fillCols(ctx,W,gy,tops,far,farEdge);
+    // Schnee
+    for(let x=0;x<W;x++){ const t=tops[x+1]; const h=gy-2-t; if(h>(w.shape==='icepeaks'?14:22)){ const depth=Math.round(h*(w.shape==='icepeaks'?.45:.3))+(((x+Math.round(px))>>1)&1)*2; ctx.fillStyle=farHi; ctx.fillRect(x,t,1,depth); } }
+  } else if(w.shape==='mesas'){
+    const sp=120;
+    const tops=columns(W,x=>{ const wx=x+px; let best=gy; const i0=Math.floor(wx/sp); for(let i=i0-1;i<=i0+2;i++){ const c=i*sp+sp*.5, ph=24+hash(i+3)*20, tw=12+hash(i+7)*18, d=Math.abs(wx-c), h=d<tw?ph:ph-(d-tw)*2.4; if(h>0) best=Math.min(best,gy-Math.round(h)); } return best; });
+    fillCols(ctx,W,gy,tops,far,farEdge);
+    ctx.fillStyle=farHi; for(let x=0;x<W;x++){ const t=tops[x+1]; for(let y=t+4;y<gy;y+=7) ctx.fillRect(x,y,1,1+((y>>3)&1)); }
+  } else if(w.shape==='swamp'){
+    ctx.fillStyle=far;
+    for(let i=-1;i<6;i++){ const bx=Math.round(i*70+20-(px%70)), h=34+hash(i+Math.floor(px/70))*16, base=gy;
+      ctx.fillRect(bx,base-h,3,h); ctx.fillRect(bx-1,base-4,5,4);
+      for(let k=0;k<8;k++){ ctx.fillRect(bx+3+k,base-h+14-k,1,1); ctx.fillRect(bx-1-k,base-h+20-Math.round(k*.8),1,1); }
+      for(let k=0;k<5;k++) ctx.fillRect(bx+1+Math.round(k*.6),base-h-k,1,1); }
+    ctx.globalAlpha=.18; ctx.fillStyle='#ffffff'; ctx.fillRect(0,gy-22,W,6); ctx.fillRect(0,gy-12,W,4); ctx.globalAlpha=1;
+  } else if(w.shape==='cloudbanks'){
+    const tops=columns(W,x=>humps(x+px,gy+10,64,22,38,40));
+    fillCols(ctx,W,gy,tops,far,wcol(st,'#d9e2ff'));
+    ctx.fillStyle=farHi; for(let x=0;x<W;x++){ const t=tops[x+1]; ctx.fillRect(x,Math.max(t+6,gy-8),1,8); }
+  } else if(w.shape==='volcano'){
+    const c=210-px*1.5;
+    const tops=columns(W,x=>{ const d=Math.abs(x-c), h=d<9?62:62-(d-9)*1.05; return h>0?gy-Math.round(h):gy; });
+    fillCols(ctx,W,gy,tops,far,farEdge);
+    ctx.fillStyle=farHi; for(let x=Math.round(c-8);x<=c+8;x++) ctx.fillRect(x,gy-62,1,2);
+    for(const [ox,len] of [[-4,16],[3,26],[6,10]]){ for(let k=0;k<len;k++){ const xx=Math.round(c+ox+(ox>0?k*.55:-k*.55)); ctx.fillRect(xx,gy-60+k,1,1); } }
+    for(let k=0;k<4;k++){ const ph=((t*.35+k*.25)%1), sx=c-2+Math.sin(k*2+t)*4+ph*10, sy=gy-66-ph*44, r=3+ph*6; ctx.globalAlpha=(1-ph)*.55; ctx.fillStyle=wcol(st,'#8a7480'); pixCircle(ctx,sx,sy,r); }
+    ctx.globalAlpha=1;
+  }
+  // Wolken
+  const cl=bake('cloud',st,{Z:wcol(st,w.cl),v:wcol(st,w.cs)},'cl'+w.name);
+  const cpx=camX*.32 - t*3;
+  for(const [cx,cy] of [[10,14],[118,30],[205,10],[300,24]]){ const span=380; let x=((cx-cpx)%span+span)%span-40; if(w.shape==='volcano') ctx.globalAlpha=.7; ctx.drawImage(cl,Math.round(x),cy*(H/144)); ctx.globalAlpha=1; }
+  // Hügel (zwei Ebenen)
+  const h1=wcol(st,w.h1), h2=wcol(st,w.h2), hl=wcol(st,w.hl);
+  const t1=columns(W,x=>humps(x+camX*.42,gy+10,74,30,46,1));
+  fillCols(ctx,W,H,t1,h1,mix(hl,h1,.45));
+  ctx.fillStyle=mix(h1,'#ffffff',.28); for(let x=0;x<W;x++){ const wx=x+Math.round(camX*.42); for(let y=t1[x+1]+5;y<gy;y++) if((wx+y*2)%11===0) ctx.fillRect(x,y,1,2); }
+  const t2=columns(W,x=>humps(x+camX*.68,gy+6,92,20,30,7));
+  fillCols(ctx,W,H,t2,h2,hl);
+  ctx.fillStyle=mix(h2,'#ffffff',.18); for(let x=0;x<W;x++){ const wx=x+Math.round(camX*.68); for(let y=t2[x+1]+4;y<gy;y++) if((wx-y*2)%9===0) ctx.fillRect(x,y,1,1); }
+}
+
+function pixCircle(ctx,cx,cy,r){ cx=Math.round(cx); cy=Math.round(cy); const R=Math.round(r); for(let y=-R;y<=R;y++){ const hw=Math.floor(Math.sqrt(r*r-y*y)); ctx.fillRect(cx-hw,cy+y,hw*2+1,1); } }
+
+function drawPit(ctx,st,w,x,gy,H,t){
+  const kind=w.pit; if(!kind||kind==='sky') return;
+  const cols={lava:['#ff6a2a','#ffd23f','#c92a1a'], poison:['#7fd13b','#c8f56a','#3f7a22'], ice:['#7fd0f5','#e6f8ff','#4b9bd0'], sand:['#e9b064','#ffe0a0','#b97a3b']}[kind];
+  const top=gy+10;
+  ctx.fillStyle=wcol(st,cols[0]); ctx.fillRect(x,top,32,H-top);
+  ctx.fillStyle=wcol(st,cols[2]); for(let i=0;i<32;i++) if((i*5+Math.floor(t*6))%13<2) ctx.fillRect(x+i,top+6+(i%7),1,1);
+  ctx.fillStyle=wcol(st,cols[1]); for(let i=0;i<32;i++){ const yy=top+Math.round(Math.sin(i*.45+t*(kind==='ice'?0:3))*1.2); ctx.fillRect(x+i,yy,1,1); }
+}
+
+/* ================= Level & Vorschau-Ablauf ================= */
+const LEVEL_W=24*16, LOOP=9.5;
+const GAP=new Set([15,16]);
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function jumpY(p,h){ return -4*h*p*(1-p); }
+function demo(t){
+  const s={kx:24,ky:0,face:1,frame:'kraxel',crateUsed:false,bump:0,pop:null,bx:320-26*t,beetle:'walk',poof:null,crystals:23,jump:false,right:false,left:false};
+  const walk=()=>{ s.frame=(Math.floor(t*9)%2)?'kraxelB':'kraxel'; };
+  if(t<1.6){ s.kx=24+55*t; walk(); s.right=true; }
+  else if(t<2.2){ const p=(t-1.6)/.6; s.kx=112; s.ky=jumpY(p,32); s.frame='kraxelJ'; s.jump=t<1.8; s.right=false; }
+  else if(t<3.4){ s.kx=112+55*(t-2.2); walk(); s.right=true; }
+  else if(t<4.0){ const p=(t-3.4)/.6; s.kx=178+55*(t-3.4); s.ky=jumpY(p,24); s.frame='kraxelJ'; s.jump=t<3.6; s.right=true; }
+  else if(t<4.4){ const p=(t-4.0)/.4; s.kx=211+55*(t-4.0); s.ky=jumpY(p,14); s.frame='kraxelJ'; s.right=true; }
+  else if(t<4.9){ s.kx=233+55*(t-4.4); walk(); s.right=true; }
+  else if(t<5.2){ s.kx=260; s.face=t<5.05?1:-1; }
+  else { s.kx=260-55*(t-5.2); s.face=-1; walk(); s.left=true; }
+  if(t>=1.9){ s.crateUsed=true; }
+  if(t>=1.9&&t<2.1) s.bump=-Math.round(4*Math.sin(Math.PI*(t-1.9)/.2));
+  if(t>=1.9&&t<2.4){ const p=(t-1.9)/.5; s.pop={y:48-30*(1-(1-p)*(1-p)), spin:t*22}; }
+  if(t>=2.4&&t<2.7) s.sparkle={x:112+8,y:18,p:(t-2.4)/.3};
+  if(t>=2.4) s.crystals=24;
+  if(t>=4.0){ s.bx=216; s.beetle=t<4.5?'flat':'gone'; if(t>=4.5&&t<4.85) s.poof={x:224,y:104,p:(t-4.5)/.35}; }
+  return s;
+}
+
+function sparkle(ctx,x,y,p,col){ const r=Math.round(1+p*4); ctx.globalAlpha=1-p*.7; ctx.fillStyle=col; ctx.fillRect(x,y-r,1,r*2+1); ctx.fillRect(x-r,y,r*2+1,1); if(p>.3){ ctx.fillRect(x-r+1,y-r+1,1,1); ctx.fillRect(x+r-1,y-r+1,1,1); ctx.fillRect(x-r+1,y+r-1,1,1); ctx.fillRect(x+r-1,y+r-1,1,1);} ctx.globalAlpha=1; }
+
+function drawCrystal(ctx,st,x,y,phase){ ctx.imageSmoothingEnabled=false; const c=bake('crystal',st); const k=Math.abs(Math.cos(phase)); const w=Math.max(2,Math.round(8*k/2)*2); ctx.drawImage(c,4,3,8,9,Math.round(x+4+(8-w)/2),Math.round(y+3),w,9); }
+
+function drawGround(ctx,st,w,W,H,camX,gap,t){
+  const gy=H-32, over=tileOver(st,w), oid='t'+w.name;
+  const c0=Math.floor(camX/16), c1=Math.ceil((camX+W)/16);
+  for(let c=c0;c<=c1;c++){
+    const x=c*16-Math.round(camX);
+    if(gap.has(c)){ if(!gap.has(c-1)){ drawPit(ctx,st,w,x,gy,H,t); if(!w.pit){ for(let y=gy;y<H;y++){ ctx.globalAlpha=Math.min(.85,(y-gy)/(H-gy)*1.1); ctx.fillStyle='#120a1e'; ctx.fillRect(x,y,32,1); } ctx.globalAlpha=1; } } continue; }
+    spr(ctx,'groundTop',st,x,gy,false,over,oid);
+    for(let y=gy+16;y<H;y+=16) spr(ctx,'groundFill',st,x,y,false,over,oid);
+    ctx.fillStyle=st.selout?mix(over.D,st.dark,.5):st.pal.o;
+    if(gap.has(c+1)) ctx.fillRect(x+15,gy,1,H-gy);
+    if(gap.has(c-1)) ctx.fillRect(x,gy,1,H-gy);
+  }
+}
+
+function drawHUD(ctx,st,W,s){
+  spr(ctx,'iCrystal',st,4,4); txt(ctx,'x'+s.crystals,13,5,'#ffffff','#1b1230');
+  spr(ctx,'iEdel',st,36,4); spr(ctx,'iEdelOff',st,45,4); spr(ctx,'iEdelOff',st,54,4);
+  spr(ctx,'iHead',st,W-52,5); txt(ctx,'x3',W-41,5,'#ffffff','#1b1230');
+  txt(ctx,String(287-Math.floor(s.t)),W-18,5,'#ffffff','#1b1230');
+}
+
+function drawLevel(ctx,W,H,st,t){
+  const w=WORLDS[0], s=demo(t); s.t=t;
+  const gy=H-32;
+  const camX=Math.round(clamp(s.kx+8-W/2,0,LEVEL_W-W));
+  drawBackground(ctx,W,H,st,w,camX,t);
+  drawGround(ctx,st,w,W,H,camX,GAP,t);
+  const X=v=>Math.round(v-camX);
+  // schwebende Wiese mit Edelweiß
+  const over=tileOver(st,w);
+  for(const c of [19,20,21]){ spr(ctx,'groundTop',st,X(c*16),gy-48,false,over,'t'+w.name); }
+  ctx.fillStyle=st.selout?mix(over.D,st.dark,.5):st.pal.o; ctx.fillRect(X(19*16),gy-48+15,48,1); ctx.fillRect(X(19*16),gy-48,1,16); ctx.fillRect(X(22*16)-1,gy-48,1,16);
+  spr(ctx,'edel',st,X(20*16),gy-64+Math.round(Math.sin(t*3)*1.5));
+  // Gipfelkreuz
+  spr(ctx,'cross',st,X(23*16-4),gy-32);
+  // Blöcke
+  spr(ctx,'stone',st,X(96),gy-64); spr(ctx,'stone',st,X(128),gy-64);
+  spr(ctx,s.crateUsed?'crateUsed':'crate',st,X(112),gy-64+s.bump);
+  if(!s.crateUsed && Math.floor(t*2)%3===0) sparkle(ctx,X(124),gy-62,((t*2)%1),'#ffffff');
+  // Kristall-Bogen
+  [[10,gy-40],[11,gy-52],[12,gy-52],[13,gy-40]].forEach(([c,y],i)=>drawCrystal(ctx,st,X(c*16),y,t*4+i*.7));
+  if(s.pop) drawCrystal(ctx,st,X(112),s.pop.y-16,s.pop.spin);
+  if(s.sparkle) sparkle(ctx,X(s.sparkle.x),s.sparkle.y+12,s.sparkle.p,'#fff6a8');
+  // Gegner
+  if(s.beetle==='walk') spr(ctx,'beetle',st,X(s.bx),gy-16+((Math.floor(t*6)%2)?-1:0));
+  if(s.beetle==='flat') spr(ctx,'beetleFlat',st,X(s.bx),gy-16);
+  if(s.poof) for(const [dx,dy] of [[-6,-4],[6,-6],[0,-10],[-8,2],[8,2]]) sparkle(ctx,X(s.poof.x+dx),s.poof.y+dy-6,s.poof.p,'#ffffff');
+  const sx=21*16+Math.sin(t*.6)*10; spr(ctx,'snail',st,X(sx),gy-16,Math.cos(t*.6)>0);
+  // Kraxel
+  spr(ctx,s.frame,st,X(s.kx),gy-16+s.ky,s.face<0);
+  drawHUD(ctx,st,W,s);
+  return s;
+}
+
+/* ================= Mini-Welten ================= */
+function drawWorld(ctx,st,w,t){
+  const W=160,H=90, gy=H-32;
+  drawBackground(ctx,W,H,st,w,0,t);
+  const gap=new Set([6,7]);
+  if(w.pit==='sky'){
+    // Wolkenwelt: einzelne Wolkenplattformen statt Boden
+    drawGround(ctx,st,w,W,H,0,new Set([4,5,6,7]),t);
+  } else drawGround(ctx,st,w,W,H,0,gap,t);
+  spr(ctx,'crate',st,48,gy-44);
+  drawCrystal(ctx,st,104,gy-34,.4); drawCrystal(ctx,st,118,gy-40,1.1);
+  if(w.shape==='icepeaks'){ ctx.fillStyle=wcol(st,'#d8f4ff'); for(const [x,l] of [[50,6],[55,4],[59,7]]) for(let k=0;k<l;k++) ctx.fillRect(x,gy-28+k,Math.max(1,2-Math.floor(k/3)),1); }
+  if(w.shape==='mesas'){ const cx=136; ctx.fillStyle=wcol(st,'#4f9a4a'); ctx.fillRect(cx,gy-18,4,18); ctx.fillRect(cx-4,gy-12,4,3); ctx.fillRect(cx-4,gy-16,2,4); ctx.fillRect(cx+4,gy-10,4,3); ctx.fillRect(cx+6,gy-14,2,4); }
+  spr(ctx,'kraxel',st,22,gy-16);
+  if(w.shape==='swamp') spr(ctx,'snail',st,132,gy-16);
+  if(w.shape==='cloudbanks') spr(ctx,'glider',st,92,gy-58+Math.round(Math.sin(t*2)*2));
+  if(w.shape==='volcano') spr(ctx,'beetle',st,136,gy-16);
+}
+
+/* ================= Handys ================= */
+function pc(ctx,cx,cy,r,fill,edge,hi){ ctx.fillStyle=edge; pixCircle(ctx,cx,cy,r+1); ctx.fillStyle=hi; pixCircle(ctx,cx,cy-1,r); ctx.fillStyle=fill; pixCircle(ctx,cx,cy+1,r-1); }
+function arrow(ctx,cx,cy,dir,col,size){ ctx.fillStyle=col; for(let i=0;i<size;i++){ const w=i*2+1; if(dir==='u') ctx.fillRect(cx-i,cy-size+1+i,w,1); if(dir==='d') ctx.fillRect(cx-i,cy+size-1-i,w,1); if(dir==='l') ctx.fillRect(cx-size+1+i,cy-i,1,w); if(dir==='r') ctx.fillRect(cx+size-1-i,cy-i,1,w); } }
+function dpad(ctx,cx,cy,arm,half,s,alpha){
+  ctx.globalAlpha=alpha;
+  const base='#5b4f80', edge='#16112a', hi='#8478b0', on='#a99cf0';
+  ctx.fillStyle=edge; ctx.fillRect(cx-arm-1,cy-half-1,arm*2+2,half*2+2); ctx.fillRect(cx-half-1,cy-arm-1,half*2+2,arm*2+2);
+  ctx.fillStyle=base; ctx.fillRect(cx-arm,cy-half,arm*2,half*2); ctx.fillRect(cx-half,cy-arm,half*2,arm*2);
+  ctx.fillStyle=hi; ctx.fillRect(cx-arm,cy-half,arm*2,1); ctx.fillRect(cx-half,cy-arm,half*2,1);
+  ctx.fillStyle=on; if(s.right) ctx.fillRect(cx+half,cy-half+1,arm-half,half*2-1); if(s.left) ctx.fillRect(cx-arm,cy-half+1,arm-half,half*2-1);
+  const ac='#e4ddff', as=Math.max(3,Math.round(half*.55));
+  arrow(ctx,cx+arm-as-2,cy,'r',ac,as); arrow(ctx,cx-arm+as+1,cy,'l',ac,as); arrow(ctx,cx,cy-arm+as+1,'u',ac,as); arrow(ctx,cx,cy+arm-as-2,'d',ac,as);
+  ctx.fillStyle=edge; pixCircle(ctx,cx,cy,Math.max(2,half*.45));
+  ctx.globalAlpha=1;
+}
+function jumpBtn(ctx,cx,cy,r,s,alpha,st){
+  ctx.globalAlpha=alpha; const p=s.jump?1:0;
+  pc(ctx,cx,cy+p,r,s.jump?'#7ff0e4':st.pal.H,'#0f2b2a',s.jump?'#c9fff8':st.pal.h);
+  arrow(ctx,cx,cy+p-1,'u','#ffffff',Math.round(r*.5)); ctx.fillStyle='#ffffff'; ctx.fillRect(cx-1,cy+p-1,3,Math.round(r*.45));
+  ctx.globalAlpha=1;
+}
+function actBtn(ctx,cx,cy,r,alpha,st){ ctx.globalAlpha=alpha*.55; pc(ctx,cx,cy,r,st.pal.A,'#2a0d16',mix(st.pal.A,'#ffffff',.35)); ctx.globalAlpha=alpha*.7; spr(ctx,'sling',st,cx-8,cy-8); ctx.globalAlpha=1; }
+
+function drawPortrait(ctx,st,t){
+  const W=160,H=346, top=18, gh=144;
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  ctx.save(); ctx.translate(0,top); ctx.beginPath(); ctx.rect(0,0,W,gh); ctx.clip(); const s=drawLevel(ctx,W,gh,st,t); ctx.restore();
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,top); ctx.fillStyle='#1d1d22'; ctx.fillRect(58,5,44,8);
+  const py=top+gh;
+  ctx.fillStyle='#231c37'; ctx.fillRect(0,py,W,H-py);
+  ctx.fillStyle='#2b2343'; for(let y=py+2;y<H;y+=4) for(let x=((y>>2)&1)*2;x<W;x+=4) ctx.fillRect(x,y,1,1);
+  ctx.fillStyle='#4a3d6b'; ctx.fillRect(0,py,W,1); ctx.fillStyle='#120e1f'; ctx.fillRect(0,py+1,W,1);
+  dpad(ctx,44,py+84,28,9,s,1);
+  jumpBtn(ctx,124,py+74,19,s,1,st);
+  actBtn(ctx,96,py+118,11,1,st);
+  ctx.fillStyle='#6d5f99'; ctx.fillRect(144,py+10,2,7); ctx.fillRect(149,py+10,2,7);
+  ctx.fillStyle='#d9d9e0'; ctx.fillRect(56,H-8,48,3);
+}
+function drawLandscape(ctx,st,t){
+  const W=312,H=144; const s=drawLevel(ctx,W,H,st,t);
+  dpad(ctx,36,108,22,7,s,.42);
+  jumpBtn(ctx,284,110,15,s,.5,st);
+  actBtn(ctx,254,124,10,.9,st);
+  ctx.globalAlpha=.5; ctx.fillStyle='#ffffff'; ctx.fillRect(W/2-4,5,2,6); ctx.fillRect(W/2+1,5,2,6); ctx.globalAlpha=1;
+}
+
+/* ================= Aufbau & Schleife ================= */
+const ITEMS=[['kraxel','Kraxel'],['crate','Kraxelkiste'],['crystal','Kristall'],['edel','Edelweiß (3 pro Level)'],['helm','Helm'],['sling','Steinschleuder'],['glider','Gleitschirm'],['crampon','Steigeisen'],['enzian','Goldener Enzian'],['beetle','Krabbelkäfer'],['snail','Stachelschnecke'],['stone','Felsblock'],['cross','Gipfelkreuz (Ziel)']];
+const itemsEl=document.getElementById('items');
+const itemCanvases=ITEMS.map(([k,label])=>{ const d=document.createElement('div'); d.className='kx-item'; const c=document.createElement('canvas'); c.width=16; c.height=SPR[k].length; if(c.height>16) c.classList.add('tall'); const sp=document.createElement('span'); sp.textContent=label; d.append(c,sp); itemsEl.append(d); return [k,c]; });
+const worldsEl=document.getElementById('worlds');
+const worldCanvases=WORLDS.map(w=>{ const d=document.createElement('div'); d.className='kx-world'; const c=document.createElement('canvas'); c.width=160; c.height=90; const sp=document.createElement('span'); sp.textContent=w.name; d.append(c,sp); worldsEl.append(d); return c; });
+
+let cur='a';
+window.kxSetStyle=function(k){ cur=k; for(const id of ['stylePill1','stylePill2','stylePill3']) document.getElementById(id).textContent='Stil '+k.toUpperCase(); };
+
+const cA=document.getElementById('sceneA').getContext('2d'), cB=document.getElementById('sceneB').getContext('2d');
+const cP=document.getElementById('phoneP').getContext('2d'), cL=document.getElementById('phoneL').getContext('2d');
+function frame(now){
+  const t=(now/1000)%LOOP, st=STYLES[cur];
+  drawLevel(cA,256,144,STYLES.a,t); drawLevel(cB,256,144,STYLES.b,t);
+  itemCanvases.forEach(([k,c])=>{ const x=c.getContext('2d'); x.clearRect(0,0,c.width,c.height);
+    if(k==='kraxel') spr(x,(Math.floor(now/140)%2)?'kraxelB':'kraxel',st,0,0);
+    else if(k==='crystal') drawCrystal(x,st,0,0,now/250);
+    else spr(x,k,st,0,0); });
+  worldCanvases.forEach((c,i)=>drawWorld(c.getContext('2d'),st,WORLDS[i],now/1000));
+  drawPortrait(cP,st,t); drawLandscape(cL,st,t);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
