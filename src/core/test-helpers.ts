@@ -22,6 +22,9 @@ export function gridFrom(rows: string[]): TileGrid {
   return g;
 }
 
+/** Flacher Boden in Reihe 10, 40 Spalten breit. */
+export const FLAT = gridFrom([...Array(10).fill('.'.repeat(40)), '#'.repeat(40)]);
+
 export function held(p: Partial<Held> = {}): Held {
   return { ...emptyHeld(), ...p };
 }
@@ -33,6 +36,7 @@ export function runPlayer(p: PlayerState, grid: TileGrid, script: Script, t: Tun
   const sampler = new InputSampler();
   const events: GameEvent[] = [];
   const headCells: Array<[number, number]> = [];
+  const poundCells: Array<[number, number]> = [];
   let minY = p.body.y;
   let maxVy = p.body.vy;
   for (const [input, steps] of script) {
@@ -40,9 +44,10 @@ export function runPlayer(p: PlayerState, grid: TileGrid, script: Script, t: Tun
       const r = stepPlayer(p, sampler.sample(held(input)), grid, t, STEP);
       events.push(...r.events);
       headCells.push(...r.headCells);
+      poundCells.push(...r.poundCells);
       minY = Math.min(minY, p.body.y);
       maxVy = Math.max(maxVy, p.body.vy);
     }
   }
-  return { events, headCells, minY, maxVy };
+  return { events, headCells, poundCells, minY, maxVy };
 }

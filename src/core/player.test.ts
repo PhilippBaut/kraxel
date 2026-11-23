@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createPlayer } from './player.ts';
-import { gridFrom, runPlayer } from './test-helpers.ts';
+import { FLAT, gridFrom, runPlayer } from './test-helpers.ts';
 import type { GameEvent } from './types.ts';
 
 // Boden: Reihe 10, Kraxel startet bei Zelle (3, 9)
-const FLAT = gridFrom([...Array(10).fill('.'.repeat(40)), '#'.repeat(40)]);
 const start = () => createPlayer(3, 9);
 
 describe('Laufen', () => {
@@ -67,5 +66,24 @@ describe('Fallen und Decke', () => {
   it('Kopfstoß unter Kiste meldet headCells', () => {
     const g = gridFrom(['..........', '...K......', '..........', '..........', '..........', '##########']);
     const p = createPlayer(3, 4); expect(runPlayer(p, g, [[{ jump: true }, 30]]).headCells).toContainEqual([3, 1]);
+  });
+});
+
+describe('Rennen und Sprungschnitt (Nachträge)', () => {
+  it('Richtungswechsel direkt an der Wand startet nicht mit Renntempo', () => {
+    const g = gridFrom([...Array(10).fill('......#' + '.'.repeat(33)), '#'.repeat(40)]);
+    const p = createPlayer(5, 9);
+    runPlayer(p, g, [[{ right: true }, 90]]); // drückt gegen die Wand, vx bleibt 0
+    runPlayer(p, g, [[{ left: true }, 20]]);
+    expect(Math.abs(p.body.vx)).toBeLessThanOrEqual(96.5);
+  });
+  it('gepufferter Sprung nach losgelassener Taste wird sofort abgeschnitten', () => {
+    const p = createPlayer(3, 2); let landStep = 0;
+    { const q = createPlayer(3, 2); while (!q.grounded) { runPlayer(q, FLAT, [[{}, 1]]); landStep++; } }
+    runPlayer(p, FLAT, [[{}, landStep - 3]]);
+    const groundY = 10 * 16 - 14;
+    const r = runPlayer(p, FLAT, [[{ jump: true }, 1], [{}, 60]]);
+    expect(r.events).toContainEqual({ type: 'jump' });
+    expect(groundY - r.minY).toBeLessThanOrEqual(35);
   });
 });
