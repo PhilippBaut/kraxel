@@ -6,7 +6,10 @@ import { createGame, stepGame, type GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import { parseLevel } from '../core/level.ts';
 import { FixedStepper } from '../core/stepper.ts';
-import { DEFAULT_TUNING } from '../core/tuning.ts';
+import { DEFAULT_TUNING, isDebug, loadTuning, type Tuning } from '../core/tuning.ts';
+import type { KeyValueStore } from '../core/types.ts';
+import { DebugPanel } from '../debug/debug-panel.ts';
+import { PixelText } from '../gfx/pixel-text.ts';
 import { groundTileIndex } from '../gfx/tiles.ts';
 import type { Controls } from '../input/controls.ts';
 import { LEVELS } from '../levels/index.ts';
@@ -20,6 +23,15 @@ const BACKGROUND = [
   { key: 'bg-clouds', factor: 0.32, drift: 3 },
   { key: 'bg-hills', factor: 0.5, drift: 0 },
 ] as const;
+/** localStorage, oder null wenn der Zugriff scheitert (z. B. privater Modus in Safari). */
+function safeStore(): KeyValueStore | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 const PIT_SHADE = 0x120a1e, PIT_ALPHA = 0.85;
 /** Ab diesem Anteil der Grubentiefe ist der Verlauf voll dunkel (Entwurf: min(.85, d·1,1)). */
 const PIT_FULL_AT = PIT_ALPHA / 1.1;
@@ -34,6 +46,8 @@ export class PlayScene extends Phaser.Scene {
   private background: { sprite: Phaser.GameObjects.TileSprite; factor: number; drift: number }[] = [];
   private viewSize = { w: 0, h: VIEW_H };
   private levelPx = { w: 0, h: 0 };
+  private tuning: Tuning = DEFAULT_TUNING;
+  private debug: { panel: DebugPanel; boxes: Phaser.GameObjects.Graphics; fps: PixelText } | null = null;
 
   constructor() {
     super('play');
@@ -61,20 +75,51 @@ export class PlayScene extends Phaser.Scene {
     this.scrollTo(0);
     this.worldView.sync(this.state, this.time.now / 1000);
 
+    this.tuning = DEFAULT_TUNING;
+    this.debug = null;
+    if (isDebug(window.location.search)) this.createDebug();
+
     this.game.events.on('layout', this.applyLayout, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off('layout', this.applyLayout, this));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off('layout', this.applyLayout, this);
+      this.debug?.panel.destroy();
+      this.debug = null;
+    });
   }
 
   update(time: number, delta: number): void {
     const steps = this.stepper.advance(delta);
     for (let i = 0; i < steps; i++) {
       const input = this.controls.sample();
-      const events = stepGame(this.state, input, DEFAULT_TUNING, { x: this.cam.x, w: this.viewSize.w }, STEP);
+      const events = stepGame(this.state, input, this.tuning, { x: this.cam.x, w: this.viewSize.w }, STEP);
       this.worldView.handle(events);
       stepCamera(this.cam, this.state.player, this.viewSize, this.levelPx, STEP);
     }
     this.scrollTo(time / 1000);
     this.worldView.sync(this.state, time / 1000);
+    this.drawDebug(delta);
+  }
+
+  /** Mit ?debug: veränderbares Tuning, Panel, Trefferboxen und FPS. */
+  private createDebug(): void {
+    this.tuning = loadTuning(safeStore());
+    const boxes = this.add.graphics().setDepth(20);
+    const fps = new PixelText(this, 2, 2, 'FPS', 'white').setScrollFactor(0).setDepth(30);
+    this.debug = { panel: new DebugPanel(this.tuning, safeStore()), boxes, fps };
+  }
+
+  private drawDebug(delta: number): void {
+    if (!this.debug) return;
+    const { boxes, fps } = this.debug;
+    boxes.clear();
+    boxes.lineStyle(1, 0x00ff00, 1);
+    const b = this.state.player.body;
+    boxes.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+    boxes.lineStyle(1, 0xffff00, 1);
+    for (const p of this.state.pickups) {
+      if (!p.taken) boxes.strokeRect(p.body.x + 0.5, p.body.y + 0.5, p.body.w - 1, p.body.h - 1);
+    }
+    fps.setText(`FPS ${Math.round(1000 / Math.max(1, delta))}`);
   }
 
   private applyLayout(l: Layout): void {
