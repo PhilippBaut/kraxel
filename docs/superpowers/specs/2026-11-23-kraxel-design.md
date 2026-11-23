@@ -55,7 +55,7 @@ Die Meilensteine in Abschnitt 9 folgen diesem Fahrplan. Einige Punkte aus Schrit
 ## 3. Rahmenbedingungen
 
 - **Plattform:** Safari auf iPhone und Chrome auf Android, aktuelle Versionen. Desktop-Browser mit Tastatur sollen zum Entwickeln und Testen funktionieren.
-- **Hosting:** GitHub Pages, also nur statische Dateien und kein Server. Adresse: `philippdererbauer.github.io/kraxel/`. **[entschieden]** (GitHub Pages) / **[Festlegung]** (Repo-Name `kraxel`)
+- **Hosting:** GitHub Pages, also nur statische Dateien und kein Server. Adresse: `philippbaut.github.io/kraxel/`. **[entschieden]** (GitHub Pages) / **[Festlegung]** (Repo-Name `kraxel`)
 - **Kosten:** alles kostenlos.
 - **Rechte:** keine fremden Grafiken, Sounds oder Musik, die nicht frei nutzbar sind. Alles Eigene entsteht im Code.
 - **iPhone-Besonderheiten:** Webseiten haben dort keine Fullscreen-API und keine feste Ausrichtung. Vollbild gibt es nur über „Zum Home-Bildschirm“. Das Spiel muss sich beim Drehen live umstellen. Vibration gibt es auf dem iPhone nicht. Ton darf erst nach einer Berührung starten.
@@ -225,7 +225,7 @@ Zwischengegner und Endgegner werden mit der jeweiligen Welt entworfen.
 - **Speicherstand:** `localStorage` mit Versionsnummer im Schlüssel: Bestzeiten, gefundene Edelweiß, freigeschaltete Level, Toneinstellung.
 - **Debug-Modus:** Mit `?debug` in der Adresse erscheinen Trefferboxen, Bildrate und Regler für die Bewegungswerte, damit wir das Sprunggefühl gemeinsam am Handy feintunen können. Alle Bewegungswerte liegen an einer Stelle.
 - **Home-Bildschirm (PWA):** Web-App-Manifest (Name „Kraxel“, Vollbild, beide Ausrichtungen), Icons aus Kraxels Kopf in 180, 192 und 512 Pixeln, passende Apple-Meta-Tags, `viewport-fit=cover`. Offline-Spielen per Service Worker kommt erst beim Feinschliff, damit beim Entwickeln keine alten Versionen hängen bleiben.
-- **Repo und Veröffentlichung:** öffentliches GitHub-Repo `PhilippderErbauer/kraxel`. GitHub Actions baut bei jedem Push auf `main` und veröffentlicht auf GitHub Pages. Für Tests am echten Handy im selben WLAN läuft der Entwicklungsserver auch im Netzwerk.
+- **Repo und Veröffentlichung:** öffentliches GitHub-Repo `PhilippBaut/kraxel`. GitHub Actions baut bei jedem Push auf `main` und veröffentlicht auf GitHub Pages. Für Tests am echten Handy im selben WLAN läuft der Entwicklungsserver auch im Netzwerk.
 - **Leistung:** flüssige 60 Bilder pro Sekunde auf einem Mittelklasse-Handy der letzten Jahre.
 
 ## 9. Meilensteine

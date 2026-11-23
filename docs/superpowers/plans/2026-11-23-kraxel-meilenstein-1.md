@@ -21,7 +21,7 @@
 - Nichts, was an Nintendo erinnert: keine Fragezeichen, Röhren, Pilze, Blumen oder Sterne, keine Mario-Melodien oder -Töne. Der Kristall-Ton ist kein Quartsprung aufwärts wie die Münze.
 - Keine fremden Grafik-, Ton- oder Schriftdateien. Alles entsteht im Code.
 - Phaser 4 unterscheidet sich von Phaser 3. Vor jeder Phaser-API in `node_modules/phaser/skills/<thema>/SKILL.md` oder `node_modules/phaser/types/phaser.d.ts` nachsehen. Wichtig: `roundPixels` ist standardmäßig aus, `setTintFill` gibt es nicht mehr (`setTint(...).setTintMode(Phaser.TintModes.FILL)`), Canvas-Renderer veraltet (WebGL nutzen).
-- Build-Basispfad `/kraxel/`. Seite: `https://philippdererbauer.github.io/kraxel/`.
+- Build-Basispfad `/kraxel/`. Seite: `https://philippbaut.github.io/kraxel/`.
 - Gearbeitet wird auf `main`, weil jeder Push dort veröffentlicht. Gepusht wird nur in Task 1, 10, 11 und 18.
 - Jeder Commit endet mit `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
@@ -130,11 +130,11 @@ git add -A && git commit -m "Projektgerüst: Vite, TypeScript, Phaser 4, Vitest,
 ```
 - [ ] **Step 9: Repo anlegen, Pages einschalten, pushen.**
 ```bash
-gh repo create PhilippderErbauer/kraxel --public --description "Kraxel – ein Jump'n'Run fürs Handy" --source . --remote origin --push
-gh api -X POST repos/PhilippderErbauer/kraxel/pages -f build_type=workflow
+gh repo create PhilippBaut/kraxel --public --description "Kraxel – ein Jump'n'Run fürs Handy" --source . --remote origin --push
+gh api -X POST repos/PhilippBaut/kraxel/pages -f build_type=workflow
 gh workflow run deploy.yml
 ```
-- [ ] **Step 10: Prüfen.** Wenn `gh run list --limit 1` „completed success“ meldet: `curl -sI https://philippdererbauer.github.io/kraxel/ | head -1`. Erwartet: `HTTP/2 200`.
+- [ ] **Step 10: Prüfen.** Wenn `gh run list --limit 1` „completed success“ meldet: `curl -sI https://philippbaut.github.io/kraxel/ | head -1`. Erwartet: `HTTP/2 200`.
 
 ---
 
@@ -920,7 +920,7 @@ it('kaputter oder fehlender Speicher ergibt Standardwerte', () => {
 git add -A && git commit -m "Debug-Modus, Manifest und Icons, Übungsplatz"
 git push
 ```
-- [ ] **Step 8: Online prüfen.** Wenn `gh run list --limit 1` „completed success“ meldet: `curl -s https://philippdererbauer.github.io/kraxel/manifest.webmanifest | head -3`. Erwartet: JSON mit `"name": "Kraxel"`.
+- [ ] **Step 8: Online prüfen.** Wenn `gh run list --limit 1` „completed success“ meldet: `curl -s https://philippbaut.github.io/kraxel/manifest.webmanifest | head -3`. Erwartet: JSON mit `"name": "Kraxel"`.
 
 ---
 
@@ -929,7 +929,7 @@ git push
 **Files:**
 - Modify: `src/core/tuning.ts` (`DEFAULT_TUNING` festschreiben), bei Bedarf `src/view/layout.ts`
 
-- [ ] **Step 1: Den Repo-Inhaber bitten zu testen.** Nachricht auf Deutsch mit der Adresse `https://philippdererbauer.github.io/kraxel/?debug` und der Anleitung „Teilen → Zum Home-Bildschirm“ für das Vollbild. Bitte um Rückmeldung zu: Sprunghöhe und -weite, Tempo und Rennen, Wandsprung, Kraxeln, Stampfen, Lage und Größe der Knöpfe hochkant und quer, und ob etwas hakt. Hinweis: Mit „Werte kopieren“ im Debug-Panel lassen sich eingestellte Werte direkt schicken. **Hier anhalten und auf die Antwort warten.**
+- [ ] **Step 1: Den Repo-Inhaber bitten zu testen.** Nachricht auf Deutsch mit der Adresse `https://philippbaut.github.io/kraxel/?debug` und der Anleitung „Teilen → Zum Home-Bildschirm“ für das Vollbild. Bitte um Rückmeldung zu: Sprunghöhe und -weite, Tempo und Rennen, Wandsprung, Kraxeln, Stampfen, Lage und Größe der Knöpfe hochkant und quer, und ob etwas hakt. Hinweis: Mit „Werte kopieren“ im Debug-Panel lassen sich eingestellte Werte direkt schicken. **Hier anhalten und auf die Antwort warten.**
 - [ ] **Step 2: Rückmeldung umsetzen.** Werte in `DEFAULT_TUNING` übernehmen. Layout-Wünsche in `computeLayout` umsetzen und dabei die Tests aus Task 8 anpassen, nur bei begründeten neuen Positionen. Ändern sich Sprung-Werte, die Grenzen der Bewegungstests aus Task 5 und 6 nachziehen und den Grund im Commit nennen.
 - [ ] **Step 3:** `npm test`. Erwartet: PASS.
 - [ ] **Step 4: Commit und Push.** `git commit -am "Bewegungswerte nach Handy-Test festgeschrieben" && git push`
@@ -1244,6 +1244,6 @@ it('jede Grube ist mit Renntempo überspringbar', () => {
 
 - [ ] **Step 1: Alles prüfen.** `npm run typecheck && npm test && npm run build`. Erwartet: keine Fehler, alle Tests grün.
 - [ ] **Step 2: Im eingebauten Browser** mit `npm run preview` das ganze Spiel hochkant und quer durchspielen. Dabei: Drehen im Spiel, Drehen in der Pause, Tab wechseln, Ton an und aus, nach dem Neuladen bleibt die Bestzeit. Konsole ohne Fehler. Bildrate im Debug-Modus stabil bei ca. 60.
-- [ ] **Step 3: Push.** `git push`, danach mit `gh run list --limit 1` den Erfolg abwarten und `curl -sI https://philippdererbauer.github.io/kraxel/ | head -1`. Erwartet: `HTTP/2 200`.
-- [ ] **Step 4: Zweiter Handy-Test.** Den Repo-Inhaber bitten, `https://philippdererbauer.github.io/kraxel/` vom Home-Bildschirm zu spielen und Rückmeldung zu geben. Falls Task 11 ohne Antwort blieb, die Bewegungswerte hier noch einmal ansprechen.
+- [ ] **Step 3: Push.** `git push`, danach mit `gh run list --limit 1` den Erfolg abwarten und `curl -sI https://philippbaut.github.io/kraxel/ | head -1`. Erwartet: `HTTP/2 200`.
+- [ ] **Step 4: Zweiter Handy-Test.** Den Repo-Inhaber bitten, `https://philippbaut.github.io/kraxel/` vom Home-Bildschirm zu spielen und Rückmeldung zu geben. Falls Task 11 ohne Antwort blieb, die Bewegungswerte hier noch einmal ansprechen.
 - [ ] **Step 5:** Rückmeldung umsetzen (mit Tests, falls Logik betroffen), committen, pushen.
