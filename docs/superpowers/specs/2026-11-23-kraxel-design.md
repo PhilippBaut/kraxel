@@ -1,6 +1,6 @@
 # Kraxel – Design
 
-Stand: 23.11.2026 · Status: Entwurf, wartet auf Freigabe
+Stand: 23.11.2026 · Status: freigegeben am 23.11.2026
 
 Kennzeichnung im Text:
 - **[entschieden]**: vom Spieleentwickler (Repo-Inhaber) ausdrücklich so gewollt.
