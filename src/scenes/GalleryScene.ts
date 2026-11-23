@@ -85,11 +85,12 @@ export class GalleryScene extends Phaser.Scene {
     return y;
   }
 
-  /** Der Bodenstreifen mit allen Randvarianten, doppelt groß, darunter die Namen. */
+  /** Der Bodenstreifen mit allen Randvarianten, doppelt groß, darunter die Namen versetzt. */
   private tileset(top: number): number {
     const img = this.image(PAD, top, 'tiles-w1', 2);
-    GROUND_TILES.forEach((n, i) => new PixelText(this, PAD + i * 32, top + img.displayHeight + 3, n.toUpperCase(), 'dark'));
-    return top + img.displayHeight + 3 + GLYPH_H;
+    const labelY = top + img.displayHeight + 3;
+    GROUND_TILES.forEach((n, i) => new PixelText(this, PAD + i * 32, labelY + (i % 2) * 9, n.toUpperCase(), 'dark'));
+    return labelY + 9 + GLYPH_H;
   }
 
   /** Alle Glyphen dunkel auf hell, alle Texte aus ui-text weiß auf dunkel. */
