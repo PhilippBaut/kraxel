@@ -119,6 +119,10 @@ export class PlayScene extends Phaser.Scene {
     for (const p of this.state.pickups) {
       if (!p.taken) boxes.strokeRect(p.body.x + 0.5, p.body.y + 0.5, p.body.w - 1, p.body.h - 1);
     }
+    boxes.lineStyle(1, 0xff0000, 1);
+    for (const e of this.state.enemies) {
+      if (e.alive) boxes.strokeRect(e.body.x + 0.5, e.body.y + 0.5, e.body.w - 1, e.body.h - 1);
+    }
     fps.setText(`FPS ${Math.round(1000 / Math.max(1, delta))}`);
   }
 

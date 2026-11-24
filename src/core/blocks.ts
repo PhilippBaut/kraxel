@@ -2,6 +2,7 @@
 import { TILE } from '../config.ts';
 import type { GameState } from './game.ts';
 import { addCrystals } from './game.ts';
+import { defeatEnemiesOn } from './enemies.ts';
 import { spawnItem } from './pickups.ts';
 import { Cell } from './types.ts';
 import type { Body, GameEvent } from './types.ts';
@@ -57,6 +58,10 @@ function closeMulti(s: GameState, cx: number, cy: number): void {
 }
 
 export function hitCell(s: GameState, cx: number, cy: number, from: 'below' | 'above'): GameEvent[] {
+  return from === 'below' ? [...defeatEnemiesOn(s, cx, cy), ...hitBlock(s, cx, cy, from)] : hitBlock(s, cx, cy, from);
+}
+
+function hitBlock(s: GameState, cx: number, cy: number, from: 'below' | 'above'): GameEvent[] {
   const cell = s.grid.get(cx, cy);
   if (cell === Cell.Crate || cell === Cell.HiddenCrate) return openCrate(s, cx, cy);
   if (cell === Cell.Rock) {

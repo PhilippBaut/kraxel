@@ -2,6 +2,7 @@
 // Liest den GameState nur, verändert ihn nie.
 import Phaser from 'phaser';
 import { TILE } from '../config.ts';
+import type { EnemyState } from '../core/enemies.ts';
 import type { GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import type { PickupState } from '../core/pickups.ts';
@@ -13,7 +14,7 @@ export { playerFrame } from './player-frame.ts';
 
 type Image = Phaser.GameObjects.Image;
 
-const DEPTH = { pickup: 2, block: 3, player: 5, fx: 6 } as const;
+const DEPTH = { pickup: 2, enemy: 4, block: 3, player: 5, fx: 6 } as const;
 const BUMP_TIME = 0.15, BUMP_PX = 4;
 /** Kristall aus der Kiste: steigt 24 px auf und verschwindet dann mit Funkeln. */
 const POP_TIME = 0.4, POP_PX = 24, POP_SPIN = 22;
@@ -23,6 +24,8 @@ const DEBRIS_GRAVITY = 700, DEBRIS_TIME = 1;
 const DEBRIS_START: readonly (readonly [number, number, number, number])[] = [
   [4, 4, -60, -210], [12, 4, 60, -210], [4, 12, -40, -130], [12, 12, 40, -130],
 ];
+/** Käfer: alle 0,15 s wird gespiegelt, das gibt zwei Laufbilder. */
+const BEETLE_STEP_TIME = 0.15;
 const SHAKE_MS = 120, SHAKE_PX = 2;
 /** Ausschnitt des Kristalls im 16×16-Sprite (wie `drawCrystal`: 8×9 ab 4,3). */
 const CRYSTAL_FRAME = 'spin', CRYSTAL_X = 4, CRYSTAL_Y = 3, CRYSTAL_W = 8, CRYSTAL_H = 9;
@@ -50,6 +53,7 @@ export class WorldView {
   private readonly fx: Phaser.GameObjects.Graphics;
   private readonly blocks = new Map<number, Block>();
   private pickups: Image[] = [];
+  private enemies: Image[] = [];
   private pops: Pop[] = [];
   private sparkles: Sparkle[] = [];
   private debris: Debris[] = [];
@@ -73,6 +77,8 @@ export class WorldView {
     this.blocks.clear();
     for (const img of this.pickups) img.destroy();
     this.pickups = [];
+    for (const img of this.enemies) img.destroy();
+    this.enemies = [];
     for (const p of this.pops) p.img.destroy();
     for (const d of this.debris) d.img.destroy();
     this.pops = [];
@@ -116,6 +122,7 @@ export class WorldView {
     this.syncPlayer(s);
     this.syncBlocks(time);
     this.syncPickups(s.pickups, time);
+    this.syncEnemies(s.enemies, time);
     this.syncPops(time);
     this.syncDebris(time, dt);
     this.drawSparkles(time);
@@ -165,6 +172,25 @@ export class WorldView {
       if (p.kind === 'crystal') this.placeCrystal(img, cx, Math.round(b.y + b.h / 2) - TILE / 2, time * SPIN_RATE + i * 0.7);
       else if (p.kind === 'edelweiss') img.setPosition(cx, Math.round(b.y + b.h / 2));
       else img.setPosition(cx, Math.round(b.y + b.h));
+    }
+  }
+
+  /** Beide Sprites schauen nach links; besiegte Gegner stehen 0,5 s flach (Schnecke kopfüber). */
+  private syncEnemies(list: EnemyState[], time: number): void {
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i]!;
+      const img = (this.enemies[i] ??= this.scene.add.image(0, 0, e.kind).setOrigin(0.5, 1).setDepth(DEPTH.enemy));
+      const shown = e.alive || e.defeatTimer > 0;
+      img.setVisible(shown);
+      if (!shown) continue;
+      const b = e.body;
+      img.setPosition(Math.round(b.x + b.w / 2), Math.round(b.y + b.h) + 1);
+      if (!e.alive) {
+        img.setTexture(e.kind === 'beetle' ? 'beetleFlat' : 'snail').setFlipX(false).setFlipY(e.kind === 'snail');
+      } else {
+        const step = e.kind === 'beetle' && e.active && Math.floor(time / BEETLE_STEP_TIME) % 2 === 1;
+        img.setTexture(e.kind).setFlipY(false).setFlipX(e.dir > 0 !== step);
+      }
     }
   }
 

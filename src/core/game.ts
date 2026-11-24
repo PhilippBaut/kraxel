@@ -1,5 +1,7 @@
 // Spielzustand und der feste Spielschritt.
 import { CRYSTALS_PER_LIFE, START_LIVES, STEP, TILE } from '../config.ts';
+import { createEnemy, resolvePlayerEnemies, stepEnemies } from './enemies.ts';
+import type { EnemyState } from './enemies.ts';
 import { hitCell, primaryCell, stepBlocks } from './blocks.ts';
 import { TileGrid } from './grid.ts';
 import type { LevelData } from './level.ts';
@@ -15,9 +17,12 @@ export interface Session { lives: number; crystals: number; time: number; edelwe
 export interface GameState {
   level: LevelData; grid: TileGrid; crates: Map<number, CrateContent>;
   multi: Map<number, { left: number; timer: number }>;
-  player: PlayerState; pickups: PickupState[];
+  player: PlayerState; pickups: PickupState[]; enemies: EnemyState[];
+  /** Fußhöhe (Unterkante) des Spielers vor dem letzten Schritt, fürs Draufspringen. */
+  playerPrevBottom: number;
   checkpoint: number; phase: Phase; phaseTimer: number; session: Session; startSession: Session;
 }
+const HURT_ANIM_TIME = 0.3;
 export interface ViewWindow { x: number; w: number }
 
 export function createSession(): Session {
@@ -34,6 +39,8 @@ export function createGame(level: LevelData, session: Session = createSession())
     level, grid: TileGrid.fromLevel(level), crates: new Map(level.crates), multi: new Map(),
     player: createPlayer(level.start.cx, level.start.cy),
     pickups: level.spawns.filter((sp) => sp.kind === 'crystal' || sp.kind === 'edelweiss').map(createPickup),
+    enemies: level.spawns.filter((sp) => sp.kind === 'beetle' || sp.kind === 'snail').map(createEnemy),
+    playerPrevBottom: 0,
     checkpoint: -1, phase: 'playing', phaseTimer: 0, session, startSession: copySession(session),
   };
 }
@@ -50,16 +57,35 @@ export function addCrystals(s: GameState, n: number): GameEvent[] {
   return events;
 }
 
-/** Vorläufig (Task 13 ersetzt das durch Tod und Leben): Wer unter das Level fällt, kommt zurück an den Start. */
-function provisionalPitRespawn(s: GameState): void {
-  if (s.player.body.y <= s.level.height * TILE) return;
+/** Vorläufig (Task 13 ersetzt das durch Tod und Leben): Kraxel kommt zurück an den Start. */
+function provisionalRespawn(s: GameState): void {
   const helm = s.player.helm;
   s.player = createPlayer(s.level.start.cx, s.level.start.cy);
   s.player.helm = helm;
 }
 
-export function stepGame(s: GameState, input: InputFrame, t: Tuning, _view: ViewWindow, dt: number = STEP): GameEvent[] {
+/** Vorläufig (Task 13): wer unter das Level fällt, kommt zurück an den Start. */
+function provisionalPitRespawn(s: GameState): void {
+  if (s.player.body.y > s.level.height * TILE) provisionalRespawn(s);
+}
+
+/** Mit Helm: Helm weg und kurze Schonzeit. Ohne Helm: Tod (vorläufig: zurück an den Start, Task 13 ruft `killPlayer`). */
+export function damagePlayer(s: GameState, t: Tuning): GameEvent[] {
+  const p = s.player;
+  if (p.helm) {
+    p.helm = false;
+    p.invuln = t.hurtInvuln;
+    p.hurtTimer = HURT_ANIM_TIME;
+    p.anim = 'hurt';
+    return [{ type: 'hurt' }];
+  }
+  provisionalRespawn(s);
+  return [{ type: 'hurt' }];
+}
+
+export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewWindow, dt: number = STEP): GameEvent[] {
   if (s.phase !== 'playing') return [];
+  s.playerPrevBottom = s.player.body.y + s.player.body.h;
   const r = stepPlayer(s.player, input, s.grid, t, dt);
   const events = [...r.events];
   const head = primaryCell(s.player.body, r.headCells);
@@ -68,6 +94,8 @@ export function stepGame(s: GameState, input: InputFrame, t: Tuning, _view: View
   if (pound) events.push(...hitCell(s, pound[0], pound[1], 'above'));
   stepBlocks(s, dt);
   stepPickups(s.pickups, s.grid, dt);
+  stepEnemies(s.enemies, s.grid, view, dt);
+  events.push(...resolvePlayerEnemies(s, input, t));
   events.push(...collectPickups(s));
   s.session.time += dt;
   provisionalPitRespawn(s);

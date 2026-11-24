@@ -21,6 +21,8 @@ export interface PlayerState {
   runTimer: number; runDir: -1 | 0 | 1; speedCap: number;
   wallDir: -1 | 0 | 1; wallLock: number; climbLeft: number;
   helm: boolean; invuln: number; anim: PlayerAnim; animTime: number;
+  /** Restzeit der Schmerz-Haltung in s (`anim = 'hurt'`). */
+  hurtTimer: number;
 }
 
 export interface PlayerStepResult {
@@ -37,7 +39,7 @@ export function createPlayer(cx: number, cy: number): PlayerState {
     grounded: false, coyote: 0, jumpBuffer: 0, jumpRising: false,
     runTimer: 0, runDir: 0, speedCap: DEFAULT_TUNING.walkSpeed,
     wallDir: 0, wallLock: 0, climbLeft: DEFAULT_TUNING.climbBudget,
-    helm: false, invuln: 0, anim: 'idle', animTime: 0,
+    helm: false, invuln: 0, anim: 'idle', animTime: 0, hurtTimer: 0,
   };
 }
 
@@ -51,6 +53,8 @@ export function stepPlayer(p: PlayerState, input: InputFrame, grid: TileGrid, t:
   const poundCells: Array<[number, number]> = [];
   const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   p.animTime += dt;
+  p.invuln = Math.max(0, p.invuln - dt);
+  p.hurtTimer = Math.max(0, p.hurtTimer - dt);
   p.jumpBuffer = input.jumpPressed ? t.jumpBuffer : Math.max(0, p.jumpBuffer - dt);
 
   let headCells: Array<[number, number]> = [];
@@ -64,6 +68,7 @@ export function stepPlayer(p: PlayerState, input: InputFrame, grid: TileGrid, t:
     case 'dead': case 'goal': break;
     default: headCells = stepFree(p, input, dir, grid, t, dt, events);
   }
+  if (p.hurtTimer > 0 && p.mode !== 'dead') p.anim = 'hurt';
   return { events, headCells, poundCells };
 }
 
