@@ -935,6 +935,71 @@ git push
 - [ ] **Step 4: Commit und Push.** `git commit -am "Bewegungswerte nach Handy-Test festgeschrieben" && git push`
 - [ ] **Step 5:** Kommt keine Rückmeldung, mit den Startwerten weitermachen und das in Task 18 noch einmal ansprechen.
 
+#### Rückmeldung vom 24.11.2026 (ersetzt Step 2 bis 4)
+
+Der Repo-Inhaber sagt: Die Bewegungswerte sind super. Man trifft die Knöpfe aber manchmal nicht. Sie sollen einen Ticken größer werden. (Selbst platzieren in den Einstellungen folgt als eigene Aufgabe nach Task 16.)
+
+**Files:**
+- Modify: `src/view/layout.ts`, `src/input/touch.ts`, `src/gfx/textures.ts` (`BUTTON_RADII`), `src/scenes/UiScene.ts` (keine festen Radien mehr beim Anlegen, stattdessen `BUTTON_RADII[…][0]` oder die Layout-Radien), `src/core/tuning.ts` (nur ein Kommentar: Werte am 24.11.2026 am Handy bestätigt, Zahlen bleiben)
+- Test: `src/view/layout.test.ts`, `src/input/touch.test.ts`
+
+**Neue Werte.** `B` wird wie bisher berechnet, die Unterkanten der Knöpfe bleiben, wo sie waren.
+
+| | Steuerkreuz | Sprung | Aktion |
+|---|---|---|---|
+| hochkant | cx 60, cy B−50, r 42, hitR 60 | cx 200, cy B−56, r 28, hitR 44 | cx 140, cy B−16, r 16, hitR 24 |
+| quer | cx L+44, cy B−38, r 32, hitR 60 | cx gameW−R−37, cy B−39, r 21, hitR 38 | cx jump.cx−58, cy B−14, r 14, hitR 24 |
+
+`BUTTON_RADII = { dpad: [42, 32], jump: [28, 21], action: [16, 14] }`.
+
+**Neue Trefferregel in `zoneAt`.** Gewertet wird der Abstand zum Knopfrand (`Abstand zur Mitte − r`). Der kleinste Wert gewinnt, sichtbare Knöpfe sind Kandidaten wie bisher.
+- Hochkant (`layout.panel` vorhanden): Jeder Punkt im Steuerfeld zählt für den nächsten Knopf, ausgenommen `layout.pause`. Außerhalb des Steuerfelds gilt `null`. Tote Flächen im Steuerfeld gibt es damit nicht mehr.
+- Quer: Nur Knöpfe mit Abstand zur Mitte ≤ `hitR` sind Kandidaten, unter ihnen gewinnt der nächste Rand.
+
+- [ ] **Step 2a: Failing tests.**
+```ts
+// touch.test.ts
+const P = computeLayout(390, 844, { top: 47, right: 0, bottom: 34, left: 0 });
+const inPause = (x: number, y: number) => x >= P.pause.x && x < P.pause.x + P.pause.w && y >= P.pause.y && y < P.pause.y + P.pause.h;
+it('hochkant zählt jeder Punkt im Steuerfeld außer Pause', () => {
+  const p = P.panel!;
+  for (let y = p.y; y < p.y + p.h; y += 4) for (let x = 0; x < p.w; x += 4) if (!inPause(x, y)) expect(zoneAt(x, y, P, false)).not.toBeNull();
+  expect(zoneAt(P.pause.x + 8, P.pause.y + 6, P, false)).toBeNull();
+  expect(zoneAt(128, P.view.y + 96, P, false)).toBeNull();
+});
+it('hochkant gewinnt der nächste Knopfrand', () => {
+  const mid = (P.dpad.cx + P.dpad.r + P.jump.cx - P.jump.r) / 2, y = (P.dpad.cy + P.jump.cy) / 2;
+  expect(zoneAt(mid + 3, y, P, false)).toBe('jump');
+  expect(zoneAt(mid - 3, y, P, false)).toBe('dpad');
+});
+it('quer: Trefferfläche bis hitR', () => {
+  expect(zoneAt(L.jump.cx, L.jump.cy - L.jump.hitR + 1, L, false)).toBe('jump');
+  expect(zoneAt(L.jump.cx, L.jump.cy - L.jump.hitR - 1, L, false)).toBeNull();
+  expect(zoneAt(L.dpad.cx, L.dpad.cy - L.dpad.hitR + 1, L, false)).toBe('dpad');
+});
+// layout.test.ts
+it('Knöpfe einen Ticken größer (Handy-Test 24.11.2026)', () => {
+  const p = computeLayout(390, 844, { top: 47, right: 0, bottom: 34, left: 0 });
+  const q = computeLayout(844, 390, { top: 0, right: 47, bottom: 21, left: 47 });
+  expect([p.dpad.r, p.jump.r, p.action.r]).toEqual([42, 28, 16]);
+  expect([q.dpad.r, q.jump.r, q.action.r]).toEqual([32, 21, 14]);
+});
+it.each([
+  [375, 667, { top: 20, right: 0, bottom: 0, left: 0 }], [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }], [430, 932, { top: 59, right: 0, bottom: 34, left: 0 }],
+  [667, 375, { top: 0, right: 0, bottom: 0, left: 0 }], [844, 390, { top: 0, right: 47, bottom: 21, left: 47 }], [932, 430, { top: 0, right: 59, bottom: 21, left: 59 }],
+])('Knöpfe passen auf %ix%i', (w, h, ins) => {
+  const l = computeLayout(w, h, ins);
+  const safe = { x: Math.ceil(ins.left / l.scale), y: Math.ceil(ins.top / l.scale), w: l.gameW - Math.ceil(ins.left / l.scale) - Math.ceil(ins.right / l.scale), h: l.gameH - Math.ceil(ins.top / l.scale) - Math.ceil(ins.bottom / l.scale) };
+  for (const c of [l.dpad, l.jump, l.action]) expect(inside(c, l.panel ? { ...l.panel, y: l.hud.y + l.hud.h, h: l.panel.h - l.hud.h } : safe)).toBe(true);
+  expect(apart(l.dpad, l.jump) && apart(l.dpad, l.action) && apart(l.jump, l.action)).toBe(true);
+});
+```
+Die bestehenden Tests aus Task 8 bleiben gültig. Feste Erwartungswerte darin werden nur angepasst, wenn sie an den alten Radien hängen.
+- [ ] **Step 2b:** `npm test`. Erwartet: FAIL.
+- [ ] **Step 2c: Umsetzen** (Tabelle, `BUTTON_RADII`, `zoneAt`, `UiScene`, Kommentar in `tuning.ts`).
+- [ ] **Step 3:** `npm test`, `npm run typecheck`, `npm run build`. Erwartet: alles grün.
+- [ ] **Step 4: Im eingebauten Browser prüfen**, hochkant (390×844) und quer (844×390): Knöpfe sichtbar größer, nichts ragt aus dem Bild. Screenshots. Dann `git add -A && git commit -m "Knöpfe größer, Trefferflächen ohne Lücken nach Handy-Test"` und `git push`.
+
 ---
 
 # Phase B: Level 1-1 und alles drumherum
