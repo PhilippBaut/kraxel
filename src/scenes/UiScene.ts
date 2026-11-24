@@ -1,7 +1,7 @@
 // Bedienoberfläche über dem Spielbild. Phase A: Steuerfeld hochkant, Steuerkreuz und Sprungknopf.
 import Phaser from 'phaser';
 import { canvas2d } from '../gfx/bake.ts';
-import { dpadKey, roundButtonKey } from '../gfx/textures.ts';
+import { BUTTON_RADII, dpadKey, roundButtonKey } from '../gfx/textures.ts';
 import type { Controls } from '../input/controls.ts';
 import type { Circle, Layout } from '../view/layout.ts';
 
@@ -45,8 +45,8 @@ export class UiScene extends Phaser.Scene {
     if (!this.textures.exists(PATTERN_KEY)) this.textures.addCanvas(PATTERN_KEY, panelPattern());
     this.panel = this.add.tileSprite(0, 0, 4, 8, PATTERN_KEY).setOrigin(0);
     this.panelEdge = this.add.graphics();
-    this.dpad = this.add.image(0, 0, dpadKey(36, NONE)).setOrigin(0);
-    this.jump = this.add.image(0, 0, roundButtonKey('jump', 24, false)).setOrigin(0);
+    this.dpad = this.add.image(0, 0, dpadKey(BUTTON_RADII.dpad[0], NONE)).setOrigin(0);
+    this.jump = this.add.image(0, 0, roundButtonKey('jump', BUTTON_RADII.jump[0], false)).setOrigin(0);
     this.applyLayout(this.registry.get('layout') as Layout);
     this.game.events.on('layout', this.applyLayout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off('layout', this.applyLayout, this));

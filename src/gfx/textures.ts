@@ -9,7 +9,7 @@ import { drawDpad, drawRoundButton, type DirHeld } from './buttons.ts';
 import { ADVANCE, FONT5, GLYPH_H, GLYPH_W } from './font.ts';
 
 /** Knopfgrößen hochkant und quer (Radien wie im Layout, Task 8). */
-export const BUTTON_RADII = { dpad: [36, 28], jump: [24, 18], action: [14, 12] } as const;
+export const BUTTON_RADII = { dpad: [42, 32], jump: [28, 21], action: [16, 14] } as const;
 
 const GROUND_TILES = new Set(['groundTop', 'groundFill']);
 const DIRS = ['left', 'right', 'up', 'down'] as const;

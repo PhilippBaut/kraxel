@@ -8,14 +8,25 @@ export interface TouchPoint { id: number; x: number; y: number; zone: Zone }
 
 const DEAD_ZONE = 0.25;
 
+/** Hochkant zählt jeder Punkt im Steuerfeld (außer Pause) für den Knopf mit dem nächsten Rand;
+ *  quer sind nur Knöpfe bis hitR Kandidaten, unter ihnen gewinnt der nächste Rand. */
 export function zoneAt(x: number, y: number, l: Layout, actionVisible: boolean): Zone {
+  const p = l.panel;
+  const portrait = p !== null;
+  if (p) {
+    if (x < p.x || x >= p.x + p.w || y < p.y || y >= p.y + p.h) return null;
+    const q = l.pause;
+    if (x >= q.x && x < q.x + q.w && y >= q.y && y < q.y + q.h) return null;
+  }
   const cands: [Zone, Circle][] = [['dpad', l.dpad], ['jump', l.jump]];
   if (actionVisible) cands.push(['action', l.action]);
   let best: Zone = null;
-  let bestD = Infinity;
+  let bestEdge = Infinity;
   for (const [zone, c] of cands) {
     const d = Math.hypot(x - c.cx, y - c.cy);
-    if (d <= c.hitR && d < bestD) { best = zone; bestD = d; }
+    if (!portrait && d > c.hitR) continue;
+    const edge = d - c.r;
+    if (edge < bestEdge) { best = zone; bestEdge = edge; }
   }
   return best;
 }

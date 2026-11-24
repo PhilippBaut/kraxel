@@ -1,4 +1,5 @@
 // Alle Spielgefühl-Werte an einem Ort. px, px/s, Sekunden. Kein Phaser, kein DOM.
+// Die Werte in DEFAULT_TUNING wurden am 24.11.2026 am Handy bestätigt (Zahlen unverändert).
 import type { KeyValueStore } from './types.ts';
 
 export interface Tuning {

@@ -20,15 +20,15 @@ function landscape(cssW: number, cssH: number, insets: Insets): Layout {
   const R = Math.ceil(insets.right / scale);
   const T = Math.ceil(insets.top / scale);
   const B = VIEW_H - Math.ceil(insets.bottom / scale) - 6;
-  const jump: Circle = { cx: gameW - R - 34, cy: B - 36, r: 18, hitR: 32 };
+  const jump: Circle = { cx: gameW - R - 37, cy: B - 39, r: 21, hitR: 38 };
   return {
     orientation: 'landscape', gameW, gameH: VIEW_H, scale,
     view: { x: 0, y: 0, w: gameW, h: VIEW_H }, panel: null,
     hud: { x: L, y: T, w: gameW - L - R, h: 12 },
     pause: { x: gameW / 2 - 8, y: T + 2, w: 16, h: 12 },
-    dpad: { cx: L + 40, cy: B - 34, r: 28, hitR: 44 },
+    dpad: { cx: L + 44, cy: B - 38, r: 32, hitR: 60 },
     jump,
-    action: { cx: jump.cx - 48, cy: B - 12, r: 12, hitR: 20 },
+    action: { cx: jump.cx - 58, cy: B - 14, r: 14, hitR: 24 },
     controlsAlpha: 0.45,
   };
 }
@@ -48,9 +48,9 @@ export function computeLayout(cssW: number, cssH: number, insets: Insets): Layou
         panel: { x: 0, y: panelY, w: PORTRAIT_VIEW_W, h: panelH },
         hud: { x: 0, y: panelY, w: PORTRAIT_VIEW_W, h: 16 },
         pause: { x: 236, y: panelY + 2, w: 16, h: 12 },
-        dpad: { cx: 58, cy: B - 44, r: 36, hitR: 54 },
-        jump: { cx: 204, cy: B - 52, r: 24, hitR: 40 },
-        action: { cx: 144, cy: B - 14, r: 14, hitR: 24 },
+        dpad: { cx: 60, cy: B - 50, r: 42, hitR: 60 },
+        jump: { cx: 200, cy: B - 56, r: 28, hitR: 44 },
+        action: { cx: 140, cy: B - 16, r: 16, hitR: 24 },
         controlsAlpha: 1,
       };
     }
