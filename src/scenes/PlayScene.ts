@@ -95,7 +95,10 @@ export class PlayScene extends Phaser.Scene {
       const input = this.controls.sample();
       const events = stepGame(this.state, input, this.tuning, { x: this.cam.x, w: this.viewSize.w }, STEP);
       this.worldView.handle(events);
-      if (events.some((e) => e.type === 'respawn')) this.worldView.rebuild(this.state);
+      if (events.some((e) => e.type === 'respawn')) {
+        this.worldView.rebuild(this.state);
+        this.cam = createCamera(this.state.player, this.viewSize, this.levelPx); // Kamera springt zum Neustart
+      }
       this.provisionalGameOver();
       stepCamera(this.cam, this.state.player, this.viewSize, this.levelPx, STEP);
     }

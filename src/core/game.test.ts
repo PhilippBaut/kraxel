@@ -54,6 +54,16 @@ describe('Leben, Tod, Ziel', () => {
     s.player.grounded = false; // Füße bei 36, Zellunterkante 112 → h = 4,75
     expect(runGame(s, [[{ right: true }, 4]])).toContainEqual({ type: 'goal', bonusCrystals: 0, extraLife: true });
   });
+  it('Ziel oben: Kraxel landet, jubelt, Zeit steht', () => {
+    const s = gameFrom([...Array(6).fill('............'), '.P...Z......', '############']);
+    s.player.body.x = 5 * 16 - 8;
+    s.player.body.y = 22;
+    s.player.grounded = false;
+    runGame(s, [[{ right: true }, 4]]);
+    const t = s.session.time;
+    runGame(s, [[{ left: true }, 90]]);
+    expect([s.player.grounded, s.player.mode, s.player.anim, s.session.time]).toEqual([true, 'goal', 'cheer', t]);
+  });
   it('Level neu starten setzt Sitzung auf den Levelstart zurück', () => {
     const s = gameFrom(['......', '.Pc...', '######']);
     runGame(s, [[{ right: true }, 30]]);

@@ -5,7 +5,7 @@ import type { EnemyState } from './enemies.ts';
 import { hitCell, primaryCell, stepBlocks } from './blocks.ts';
 import { TileGrid } from './grid.ts';
 import type { LevelData } from './level.ts';
-import { overlaps } from './collide.ts';
+import { isOnGround, moveBody, overlaps } from './collide.ts';
 import { createPlayer, stepPlayer } from './player.ts';
 import type { PlayerState } from './player.ts';
 import { collectPickups, createPickup, stepPickups } from './pickups.ts';
@@ -162,6 +162,17 @@ function touchGoal(s: GameState): GameEvent[] {
   return events;
 }
 
+/** Ziel: Kraxel bekommt keine Eingabe, fällt aber mit Schwerkraft und Kollision bis zum Boden und jubelt. */
+function stepGoal(s: GameState, t: Tuning, dt: number): void {
+  const p = s.player, b = p.body;
+  p.animTime += dt;
+  s.phaseTimer = Math.max(0, s.phaseTimer - dt);
+  b.vx = 0;
+  b.vy = Math.min(b.vy + jumpGravity(t) * t.fallGravityMul * dt, t.maxFallSpeed);
+  moveBody(b, dt, s.grid);
+  p.grounded = isOnGround(b, s.grid);
+}
+
 /** Tod: nur der Fall der toten Kraxel läuft. Danach Game Over oder Neustart. */
 function stepDying(s: GameState, t: Tuning, dt: number): GameEvent[] {
   const b = s.player.body;
@@ -180,8 +191,7 @@ function stepDying(s: GameState, t: Tuning, dt: number): GameEvent[] {
 export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewWindow, dt: number = STEP): GameEvent[] {
   if (s.phase === 'dying') return stepDying(s, t, dt);
   if (s.phase === 'goal') {
-    s.player.animTime += dt;
-    s.phaseTimer = Math.max(0, s.phaseTimer - dt);
+    stepGoal(s, t, dt);
     return [];
   }
   if (s.phase !== 'playing') return [];
