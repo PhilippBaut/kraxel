@@ -43,8 +43,13 @@ export class Controls {
     return h;
   }
   sample(): InputFrame { return this.sampler.sample(this.held()); }
-  onTap(cb: (x: number, y: number) => void): void { this.pointers.onTap(cb); }
-  onPause(cb: () => void): void { this.pauseCbs.push(cb); }
+  /** Tipp in Spielpixeln. Gibt eine Funktion zum Abmelden zurück. */
+  onTap(cb: (x: number, y: number) => void): () => void { return this.pointers.onTap(cb); }
+  /** Escape oder P. Gibt eine Funktion zum Abmelden zurück. */
+  onPause(cb: () => void): () => void {
+    this.pauseCbs.push(cb);
+    return () => { this.pauseCbs = this.pauseCbs.filter((c) => c !== cb); };
+  }
 
   dispose(): void { this.keys.dispose(); this.pointers.dispose(); }
 }

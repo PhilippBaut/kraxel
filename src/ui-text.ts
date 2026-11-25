@@ -1,5 +1,6 @@
 // Alle sichtbaren Texte, Deutsch in Großbuchstaben („ß“ wird „SS“).
 export const TEXT = {
+  TITLE: 'KRAXEL',
   TAP_TO_START: 'TIPPEN ZUM STARTEN',
   IOS_HINT: ['FÜR VOLLBILD: TEILEN →', 'ZUM HOME-BILDSCHIRM'],
   PAUSE: 'PAUSE',

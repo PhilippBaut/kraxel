@@ -54,7 +54,7 @@ describe('validateLevel', () => {
     const t = 'name: x\nworld: 1\n---\n.1.2.3.Z\nP.......\n########';
     expect(validateLevel(parseLevel('t', t), BOTH)).toEqual([]);
   });
-  it('Übungsplatz ist gültig', () => {
-    expect(validateLevel(parseLevel('uebungsplatz', LEVELS.uebungsplatz), NONE)).toEqual([]);
+  it('Übungsplatz ist gültig und hat ein Ziel (für den Ergebnis-Ablauf)', () => {
+    expect(validateLevel(parseLevel('uebungsplatz', LEVELS.uebungsplatz), { requireEdelweiss: false, requireGoal: true })).toEqual([]);
   });
 });

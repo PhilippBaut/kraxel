@@ -27,3 +27,44 @@ export class PixelText extends Phaser.GameObjects.Container {
     return this;
   }
 }
+
+/** Versatz der dunklen Kopien: `shadow` nur rechts unten (Info-Leiste wie im Entwurf), `ring` ringsum (Titel). */
+const RIM: Readonly<Record<'shadow' | 'ring', readonly (readonly [number, number])[]>> = {
+  shadow: [[1, 1]],
+  ring: [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]],
+};
+
+/** Weißer Pixeltext mit dunklem Rand, damit er auch über hellem Hintergrund lesbar bleibt. Mit setScale wächst der Rand mit. */
+export class OutlinedText extends Phaser.GameObjects.Container {
+  private readonly layers: PixelText[];
+  private readonly face: PixelText;
+  private faceTint: number | null = null;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, text: string, rim: 'shadow' | 'ring' = 'shadow') {
+    super(scene, x, y);
+    scene.add.existing(this);
+    this.layers = RIM[rim].map(([dx, dy]) => new PixelText(scene, dx, dy, text, 'dark'));
+    this.face = new PixelText(scene, 0, 0, text, 'white');
+    this.add([...this.layers, this.face]);
+    this.setSize(this.face.width, this.face.height);
+  }
+
+  setText(t: string): this {
+    for (const l of this.layers) l.setText(t);
+    this.face.setText(t);
+    this.applyTint();
+    return this.setSize(this.face.width, this.face.height);
+  }
+
+  /** Färbt die helle Schrift (Multiplikation mit Weiß ergibt genau die Farbe). */
+  setFaceTint(color: number): this {
+    this.faceTint = color;
+    this.applyTint();
+    return this;
+  }
+
+  private applyTint(): void {
+    if (this.faceTint === null) return;
+    for (const img of this.face.list) (img as Phaser.GameObjects.Image).setTint(this.faceTint);
+  }
+}

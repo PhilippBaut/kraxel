@@ -98,7 +98,11 @@ export class PointerTracker {
   private readonly resetAll = (): void => { this.book.reset(); };
   private readonly onVisibility = (): void => { if (document.visibilityState === 'hidden') this.book.reset(); };
 
-  onTap(cb: (x: number, y: number) => void): void { this.tapCbs.push(cb); }
+  /** Gibt eine Funktion zum Abmelden zurück (Szenen melden sich beim Beenden ab). */
+  onTap(cb: (x: number, y: number) => void): () => void {
+    this.tapCbs.push(cb);
+    return () => { this.tapCbs = this.tapCbs.filter((c) => c !== cb); };
+  }
   onFirstTouch(cb: () => void): void { this.touchCbs.push(cb); }
 
   dispose(): void {

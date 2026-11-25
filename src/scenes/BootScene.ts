@@ -1,9 +1,7 @@
 import Phaser from 'phaser';
 import { registerTextures } from '../gfx/textures.ts';
 
-/** Phase A startet ohne Angabe direkt auf dem Übungsplatz. */
-const DEFAULT_LEVEL = 'uebungsplatz';
-
+/** Startet das Titelbild. Mit `?level=` geht es direkt ins Spiel, mit `?galerie` in die Galerie. */
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('boot');
@@ -16,7 +14,13 @@ export class BootScene extends Phaser.Scene {
       this.scene.start('gallery');
       return;
     }
-    this.scene.launch('ui');
-    this.scene.start('play', { levelId: params.get('level') ?? DEFAULT_LEVEL });
+    const level = params.get('level');
+    if (level !== null) {
+      // Unbekannte Level fängt PlayScene.init ab (START_LEVEL).
+      this.scene.start('play', { levelId: level });
+      this.scene.launch('ui');
+      return;
+    }
+    this.scene.start('title');
   }
 }

@@ -4,7 +4,10 @@ import { loadSave, safeStorage } from './core/save.ts';
 import { Controls } from './input/controls.ts';
 import { BootScene } from './scenes/BootScene.ts';
 import { GalleryScene } from './scenes/GalleryScene.ts';
+import { PauseScene } from './scenes/PauseScene.ts';
 import { PlayScene } from './scenes/PlayScene.ts';
+import { ResultScene } from './scenes/ResultScene.ts';
+import { TitleScene } from './scenes/TitleScene.ts';
 import { UiScene } from './scenes/UiScene.ts';
 import { computeLayout, readSafeInsets, type Layout } from './view/layout.ts';
 
@@ -42,8 +45,8 @@ const game = new Phaser.Game({
   },
   input: { keyboard: false, mouse: false, touch: false, gamepad: false },
   audio: { noAudio: true },
-  // Reihenfolge = Zeichenreihenfolge: die UiScene liegt über der PlayScene.
-  scene: [BootScene, PlayScene, UiScene, GalleryScene],
+  // Reihenfolge = Zeichenreihenfolge: UiScene über PlayScene, Pause und Ergebnis über beiden.
+  scene: [BootScene, TitleScene, PlayScene, UiScene, PauseScene, ResultScene, GalleryScene],
 });
 
 const controls = new Controls(parent);
@@ -63,7 +66,7 @@ game.registry.set('layout', layout);
 game.registry.set('controls', controls);
 game.registry.set('sfx', sfx);
 
-// Task 16 verlegt das erste Entsperren auf den Titel-Tipp. Die Listener bleiben dauerhaft:
+// Der Titel-Tipp entsperrt den Ton ausdrücklich. Diese Listener bleiben trotzdem dauerhaft:
 // unlock() ist billig und weckt den Kontext nach Unterbrechung (Anruf, Hintergrund) wieder auf.
 for (const type of ['pointerdown', 'touchend', 'keydown']) {
   window.addEventListener(type, () => sfx.unlock(), { passive: true });

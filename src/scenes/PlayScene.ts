@@ -1,21 +1,25 @@
 // Die Spielszene: Kachelkarte, Parallax-Hintergrund, Kamera und der feste 60-Hz-Takt.
+// Dazu der Ablauf drumherum: Pause, Ergebnis nach dem Ziel, Game Over zurück zum Titel.
 import Phaser from 'phaser';
-import { MAX_VIEW_W, START_LIVES, STEP, TILE, VIEW_H } from '../config.ts';
+import { MAX_VIEW_W, STEP, TILE, VIEW_H } from '../config.ts';
 import { soundsForEvents, type Sfx } from '../audio/sfx.ts';
 import { createCamera, stepCamera, type CameraState } from '../core/camera.ts';
 import { createGame, restartLevel, stepGame, type GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import { parseLevel } from '../core/level.ts';
-import { safeStorage } from '../core/save.ts';
+import { loadSave, recordEdelweiss, recordResult, safeStorage, writeSave } from '../core/save.ts';
 import { FixedStepper } from '../core/stepper.ts';
 import { DEFAULT_TUNING, isDebug, loadTuning, type Tuning } from '../core/tuning.ts';
 import { DebugPanel } from '../debug/debug-panel.ts';
-import { PixelText } from '../gfx/pixel-text.ts';
+import { GLYPH_H } from '../gfx/font.ts';
+import { OutlinedText, PixelText } from '../gfx/pixel-text.ts';
 import { groundTileIndex } from '../gfx/tiles.ts';
 import type { Controls } from '../input/controls.ts';
-import { LEVELS } from '../levels/index.ts';
+import { LEVELS, START_LEVEL } from '../levels/index.ts';
 import { WorldView } from '../render/world-view.ts';
+import { TEXT } from '../ui-text.ts';
 import type { Layout } from '../view/layout.ts';
+import type { ResultData } from './ResultScene.ts';
 
 /** Ebenen von hinten nach vorn mit ihrem Parallax-Faktor (wie im Entwurf); Wolken ziehen zusätzlich nach rechts (px/s). */
 const BACKGROUND = [
@@ -27,12 +31,15 @@ const BACKGROUND = [
 const PIT_SHADE = 0x120a1e, PIT_ALPHA = 0.85;
 /** Ab diesem Anteil der Grubentiefe ist der Verlauf voll dunkel (Entwurf: min(.85, d·1,1)). */
 const PIT_FULL_AT = PIT_ALPHA / 1.1;
+/** So lange steht GAME OVER da, dann geht es zum Titel (s). */
+const GAME_OVER_WAIT = 2;
+const GAME_OVER_SCALE = 2;
 
 export class PlayScene extends Phaser.Scene {
   state!: GameState;
   controls!: Controls;
   private sfx!: Sfx;
-  private levelId = 'uebungsplatz';
+  private levelId = START_LEVEL;
   private readonly stepper = new FixedStepper();
   private cam!: CameraState;
   private worldView!: WorldView;
@@ -40,16 +47,24 @@ export class PlayScene extends Phaser.Scene {
   private viewSize = { w: 0, h: VIEW_H };
   private levelPx = { w: 0, h: 0 };
   private tuning: Tuning = DEFAULT_TUNING;
-  /** Vorläufig (Task 16 ersetzt das durch die Ergebnisszene): Wartezeit nach Game Over in s. */
+  /** Seit Game Over verstrichene Zeit in s. */
   private gameOverWait = 0;
+  private gameOverText!: OutlinedText;
+  private resultShown = false;
+  private pauseRequested = false;
+  /** Der Wechsel zum Titel ist angestoßen; die Szene endet im nächsten Bild. */
+  private leaving = false;
   private debug: { panel: DebugPanel; boxes: Phaser.GameObjects.Graphics; fps: PixelText } | null = null;
 
   constructor() {
     super('play');
   }
 
-  init(data: { levelId: string }): void {
-    this.levelId = data.levelId;
+  /** Ohne Angabe oder mit unbekanntem Level (z. B. Tippfehler in `?level=`) startet START_LEVEL. */
+  init(data?: { levelId?: string }): void {
+    const id = data?.levelId;
+    if (id !== undefined && LEVELS[id] === undefined) console.warn(`Unbekanntes Level "${id}", starte "${START_LEVEL}".`);
+    this.levelId = id !== undefined && LEVELS[id] !== undefined ? id : START_LEVEL;
   }
 
   create(): void {
@@ -65,6 +80,12 @@ export class PlayScene extends Phaser.Scene {
     this.createPitShade(this.state.grid);
     this.createGround(this.state.grid);
     this.worldView = new WorldView(this, this.state);
+    this.gameOverWait = 0;
+    this.resultShown = false;
+    this.pauseRequested = false;
+    this.leaving = false;
+    this.gameOverText = new OutlinedText(this, 0, 0, TEXT.GAME_OVER, 'ring')
+      .setScale(GAME_OVER_SCALE).setScrollFactor(0).setDepth(40).setVisible(false);
 
     this.applyLayout(this.registry.get('layout') as Layout);
     this.cam = createCamera(this.state.player, this.viewSize, this.levelPx);
@@ -76,11 +97,55 @@ export class PlayScene extends Phaser.Scene {
     if (isDebug(window.location.search)) this.createDebug();
 
     this.game.events.on('layout', this.applyLayout, this);
+    const offPause = this.controls.onPause(() => this.requestPause());
+    document.addEventListener('visibilitychange', this.onVisibility);
+    this.events.on(Phaser.Scenes.Events.RESUME, this.onResume, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off('layout', this.applyLayout, this);
+      offPause();
+      document.removeEventListener('visibilitychange', this.onVisibility);
+      this.events.off(Phaser.Scenes.Events.RESUME, this.onResume, this);
       this.debug?.panel.destroy();
       this.debug = null;
     });
+  }
+
+  /** Pause-Knopf, Escape/P oder Tab im Hintergrund. Nur mitten im Spiel, nie über Ergebnis oder Game Over. */
+  requestPause(): void {
+    if (this.pauseRequested || this.state.phase !== 'playing' || !this.scene.isActive()) return;
+    this.pauseRequested = true;
+    this.scene.pause();
+    this.scene.launch('pause');
+  }
+
+  /** Zurück zum Levelanfang (Pause: NEU STARTEN, Ergebnis: NOCHMAL). Die Aufrufer setzen die Szene danach fort. */
+  restart(): void {
+    restartLevel(this.state);
+    this.worldView.rebuild(this.state);
+    this.cam = createCamera(this.state.player, this.viewSize, this.levelPx); // Kamera springt zum Neustart
+    this.gameOverWait = 0;
+    this.resultShown = false;
+    this.gameOverText.setVisible(false);
+    this.scrollTo(this.time.now / 1000);
+    this.worldView.sync(this.state, this.time.now / 1000);
+  }
+
+  /** Spiel samt Info-Leiste und Menüs beenden und zum Titel. Ein neues Spiel beginnt dort mit START_LIVES. */
+  goToTitle(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    for (const key of ['ui', 'pause', 'result']) {
+      if (this.scene.isActive(key) || this.scene.isPaused(key)) this.scene.stop(key);
+    }
+    this.scene.start('title');
+  }
+
+  private readonly onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') this.requestPause();
+  };
+
+  private onResume(): void {
+    this.pauseRequested = false;
   }
 
   update(time: number, delta: number): void {
@@ -94,7 +159,8 @@ export class PlayScene extends Phaser.Scene {
         this.worldView.rebuild(this.state);
         this.cam = createCamera(this.state.player, this.viewSize, this.levelPx); // Kamera springt zum Neustart
       }
-      this.provisionalGameOver();
+      if (events.some((e) => e.type === 'gameOver')) this.onGameOver();
+      this.stepOutcome();
       stepCamera(this.cam, this.state.player, this.viewSize, this.levelPx, STEP);
     }
     this.scrollTo(time / 1000);
@@ -102,19 +168,40 @@ export class PlayScene extends Phaser.Scene {
     this.drawDebug(delta);
   }
 
-  /** Vorläufig (Task 16 baut Titel und Ergebnis): nach Game Over 2 s warten, dann Level neu mit vollen Leben. Im Ziel bleibt Kraxel im Jubel. */
-  private provisionalGameOver(): void {
-    if (this.state.phase !== 'gameOver') {
-      this.gameOverWait = 0;
-      return;
+  /** Game Over: gesammelte Edelweiß bleiben gespeichert, GAME OVER erscheint. */
+  private onGameOver(): void {
+    const e = this.state.session.edelweiss;
+    if (e.some(Boolean)) {
+      const store = safeStorage();
+      writeSave(store, recordEdelweiss(loadSave(store), this.levelId, [e[0], e[1], e[2]]));
     }
-    this.gameOverWait += STEP;
-    if (this.gameOverWait < 2) return;
     this.gameOverWait = 0;
-    this.state.startSession.lives = START_LIVES;
-    restartLevel(this.state);
-    this.worldView.rebuild(this.state);
-    this.cam = createCamera(this.state.player, this.viewSize, this.levelPx);
+    this.gameOverText.setVisible(true);
+  }
+
+  /** Je Schritt: nach Ziel und Jubel das Ergebnis zeigen, nach Game Over und Wartezeit zum Titel. */
+  private stepOutcome(): void {
+    const s = this.state;
+    if (s.phase === 'goal' && s.phaseTimer <= 0 && !this.resultShown) this.showResult();
+    if (s.phase === 'gameOver') {
+      this.gameOverWait += STEP;
+      if (this.gameOverWait >= GAME_OVER_WAIT) this.goToTitle();
+    }
+  }
+
+  /** Ergebnis speichern und anzeigen; das Spiel steht so lange (die Menü-Eingabe braucht den InputSampler allein). */
+  private showResult(): void {
+    this.resultShown = true;
+    const store = safeStorage();
+    const { time, crystals, edelweiss: e } = this.state.session;
+    const edelweiss: [boolean, boolean, boolean] = [e[0], e[1], e[2]];
+    const { data, newBest } = recordResult(loadSave(store), this.levelId, time, edelweiss);
+    writeSave(store, data);
+    const result: ResultData = {
+      levelId: this.levelId, time, edelweiss, crystals, newBest, bestTime: data.levels[this.levelId]?.bestTime ?? null,
+    };
+    this.scene.pause();
+    this.scene.launch('result', result);
   }
 
   /** Mit ?debug: veränderbares Tuning, Panel, Trefferboxen und FPS. */
@@ -146,6 +233,9 @@ export class PlayScene extends Phaser.Scene {
   private applyLayout(l: Layout): void {
     this.viewSize = { w: l.view.w, h: l.view.h };
     this.cameras.main.setViewport(l.view.x, l.view.y, l.view.w, l.view.h);
+    // Bildfest mitten im Spielbild (Koordinaten relativ zum Kamera-Ausschnitt).
+    const t = this.gameOverText;
+    t.setPosition(Math.floor((l.view.w - t.width * GAME_OVER_SCALE) / 2), Math.floor((l.view.h - GLYPH_H * GAME_OVER_SCALE) / 2));
   }
 
   private scrollTo(time: number): void {

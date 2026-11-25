@@ -52,6 +52,10 @@ export function writeSave(store: KeyValueStore | null, d: SaveData): void {
   }
 }
 
+function mergeEdelweiss(prev: LevelRecord | undefined, e: [boolean, boolean, boolean]): [boolean, boolean, boolean] {
+  return [(prev?.edelweiss[0] ?? false) || e[0], (prev?.edelweiss[1] ?? false) || e[1], (prev?.edelweiss[2] ?? false) || e[2]];
+}
+
 /** Ergebnis eines Levels einarbeiten. Bestzeit ist das Minimum, Edelweiß wird vereinigt. Die Eingabe bleibt unverändert. */
 export function recordResult(
   d: SaveData,
@@ -62,19 +66,18 @@ export function recordResult(
   const prev = d.levels[levelId];
   const prevBest = prev?.bestTime ?? null;
   const newBest = prevBest === null || time < prevBest;
-  const merged: LevelRecord = {
-    bestTime: newBest ? time : prevBest,
-    edelweiss: [
-      (prev?.edelweiss[0] ?? false) || edelweiss[0],
-      (prev?.edelweiss[1] ?? false) || edelweiss[1],
-      (prev?.edelweiss[2] ?? false) || edelweiss[2],
-    ],
-    completed: true,
-  };
+  const merged: LevelRecord = { bestTime: newBest ? time : prevBest, edelweiss: mergeEdelweiss(prev, edelweiss), completed: true };
   return {
     data: { version: 1, levels: { ...d.levels, [levelId]: merged }, muted: d.muted },
     newBest,
   };
+}
+
+/** Nur Edelweiß einarbeiten (Game Over): vereinigt, Bestzeit und `completed` bleiben, wie sie waren. Die Eingabe bleibt unverändert. */
+export function recordEdelweiss(d: SaveData, levelId: string, edelweiss: [boolean, boolean, boolean]): SaveData {
+  const prev = d.levels[levelId];
+  const merged: LevelRecord = { bestTime: prev?.bestTime ?? null, edelweiss: mergeEdelweiss(prev, edelweiss), completed: prev?.completed ?? false };
+  return { version: 1, levels: { ...d.levels, [levelId]: merged }, muted: d.muted };
 }
 
 /**
