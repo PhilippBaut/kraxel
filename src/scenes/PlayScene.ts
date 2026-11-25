@@ -1,6 +1,7 @@
 // Die Spielszene: Kachelkarte, Parallax-Hintergrund, Kamera und der feste 60-Hz-Takt.
 import Phaser from 'phaser';
 import { MAX_VIEW_W, START_LIVES, STEP, TILE, VIEW_H } from '../config.ts';
+import { soundsForEvents, type Sfx } from '../audio/sfx.ts';
 import { createCamera, stepCamera, type CameraState } from '../core/camera.ts';
 import { createGame, restartLevel, stepGame, type GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
@@ -30,6 +31,7 @@ const PIT_FULL_AT = PIT_ALPHA / 1.1;
 export class PlayScene extends Phaser.Scene {
   state!: GameState;
   controls!: Controls;
+  private sfx!: Sfx;
   private levelId = 'uebungsplatz';
   private readonly stepper = new FixedStepper();
   private cam!: CameraState;
@@ -55,6 +57,7 @@ export class PlayScene extends Phaser.Scene {
     if (text === undefined) throw new Error(`Unbekanntes Level "${this.levelId}"`);
     this.state = createGame(parseLevel(this.levelId, text));
     this.controls = this.registry.get('controls') as Controls;
+    this.sfx = this.registry.get('sfx') as Sfx;
     const { level } = this.state;
     this.levelPx = { w: level.width * TILE, h: level.height * TILE };
 
@@ -86,6 +89,7 @@ export class PlayScene extends Phaser.Scene {
       const input = this.controls.sample();
       const events = stepGame(this.state, input, this.tuning, { x: this.cam.x, w: this.viewSize.w }, STEP);
       this.worldView.handle(events);
+      for (const n of soundsForEvents(events)) this.sfx.play(n);
       if (events.some((e) => e.type === 'respawn')) {
         this.worldView.rebuild(this.state);
         this.cam = createCamera(this.state.player, this.viewSize, this.levelPx); // Kamera springt zum Neustart

@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { Sfx } from './audio/sfx.ts';
+import { loadSave, safeStorage } from './core/save.ts';
 import { Controls } from './input/controls.ts';
 import { BootScene } from './scenes/BootScene.ts';
 import { GalleryScene } from './scenes/GalleryScene.ts';
@@ -8,6 +10,16 @@ import { computeLayout, readSafeInsets, type Layout } from './view/layout.ts';
 
 for (const type of ['gesturestart', 'dblclick', 'contextmenu']) {
   document.addEventListener(type, (e) => e.preventDefault());
+}
+
+function createAudioContext(): AudioContext | null {
+  try {
+    const w = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext };
+    const C = w.AudioContext ?? w.webkitAudioContext;
+    return C ? new C() : null;
+  } catch {
+    return null;
+  }
 }
 
 const parent = document.getElementById('game');
@@ -45,8 +57,20 @@ function toGame(clientX: number, clientY: number): { x: number; y: number } {
   };
 }
 
+const sfx = new Sfx(createAudioContext);
+sfx.setMuted(loadSave(safeStorage()).muted);
 game.registry.set('layout', layout);
 game.registry.set('controls', controls);
+game.registry.set('sfx', sfx);
+
+// Task 16 verlegt das Entsperren auf den Titel-Tipp; bis dahin die erste Geste.
+const unlockAudio = (): void => {
+  window.removeEventListener('pointerdown', unlockAudio);
+  window.removeEventListener('keydown', unlockAudio);
+  sfx.unlock();
+};
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 controls.setLayout(layout, toGame);
 
 function applyLayout(): void {
