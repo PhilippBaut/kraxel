@@ -78,7 +78,7 @@ export class Sfx {
     this._muted = m;
   }
 
-  /** Erzeugt den Kontext (einmal) und weckt ihn auf; muss aus einer Nutzergeste kommen. */
+  /** Erzeugt den Kontext (einmal) und weckt ihn auf, falls er nicht läuft; idempotent, bei jeder Geste aufrufbar. */
   unlock(): void {
     try {
       // iPhone: Ton auch bei Stummschalter.
@@ -103,7 +103,8 @@ export class Sfx {
 
   play(n: SoundName): void {
     const { ctx, master } = this;
-    if (!ctx || !master || this._muted) return;
+    // Nicht im Ruhezustand planen: currentTime steht dann, alle Noten kämen gebündelt beim Aufwachen.
+    if (!ctx || !master || this._muted || ctx.state !== 'running') return;
     try {
       const def = SOUND_DEFS[n];
       let t = ctx.currentTime;

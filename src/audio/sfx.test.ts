@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { GameEvent } from '../core/types.ts';
 import { EVENT_SOUND, SOUND_DEFS, Sfx, soundsForEvents } from './sfx.ts';
 
-function fakeContext(counter: { started: number }): AudioContext {
+function fakeContext(counter: { started: number; resumed?: number; state?: string }): AudioContext {
   const param = { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} };
-  const fake = {
-    currentTime: 0, state: 'running', resume: () => Promise.resolve(), destination: {},
+  const fake: Record<string, unknown> = {
+    currentTime: 0, state: counter.state ?? 'running',
+    resume: () => { counter.resumed = (counter.resumed ?? 0) + 1; fake.state = 'running'; return Promise.resolve(); }, destination: {},
     createOscillator: () => ({ type: '', frequency: param, connect: () => ({ connect() {} }), start: () => { counter.started++; }, stop() {} }),
     createGain: () => ({ gain: param, connect() {} }),
     createBuffer: () => ({ getChannelData: () => new Float32Array(1) }),
@@ -42,6 +43,28 @@ describe('Sfx', () => {
     sfx.setMuted(false);
     sfx.play('jump');
     expect(c.started).toBeGreaterThan(0);
+  });
+
+  it('suspendiert: play startet nichts, nach unlock wieder', () => {
+    const c: { started: number; resumed?: number } = { started: 0 };
+    let ctx: AudioContext | null = null;
+    const sfx = new Sfx(() => (ctx = fakeContext(c)));
+    sfx.unlock();
+    (ctx as unknown as { state: string }).state = 'suspended';
+    sfx.play('jump');
+    expect(c.started).toBe(0);
+    sfx.unlock();
+    expect(c.resumed).toBe(1);
+    sfx.play('jump');
+    expect(c.started).toBeGreaterThan(0);
+  });
+
+  it('mehrfaches unlock erzeugt genau einen Kontext', () => {
+    const c = { started: 0 };
+    let created = 0;
+    const sfx = new Sfx(() => { created++; return fakeContext(c); });
+    for (let i = 0; i < 10; i++) sfx.unlock();
+    expect(created).toBe(1);
   });
 
   it('Rauschklang startet einen Puffer', () => {

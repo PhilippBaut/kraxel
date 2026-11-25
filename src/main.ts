@@ -63,14 +63,11 @@ game.registry.set('layout', layout);
 game.registry.set('controls', controls);
 game.registry.set('sfx', sfx);
 
-// Task 16 verlegt das Entsperren auf den Titel-Tipp; bis dahin die erste Geste.
-const unlockAudio = (): void => {
-  window.removeEventListener('pointerdown', unlockAudio);
-  window.removeEventListener('keydown', unlockAudio);
-  sfx.unlock();
-};
-window.addEventListener('pointerdown', unlockAudio);
-window.addEventListener('keydown', unlockAudio);
+// Task 16 verlegt das erste Entsperren auf den Titel-Tipp. Die Listener bleiben dauerhaft:
+// unlock() ist billig und weckt den Kontext nach Unterbrechung (Anruf, Hintergrund) wieder auf.
+for (const type of ['pointerdown', 'touchend', 'keydown']) {
+  window.addEventListener(type, () => sfx.unlock(), { passive: true });
+}
 controls.setLayout(layout, toGame);
 
 function applyLayout(): void {
