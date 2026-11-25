@@ -14,7 +14,7 @@ export { playerFrame } from './player-frame.ts';
 
 type Image = Phaser.GameObjects.Image;
 
-const DEPTH = { pickup: 2, enemy: 4, block: 3, player: 5, fx: 6 } as const;
+const DEPTH = { marker: 1, pickup: 2, enemy: 4, block: 3, player: 5, fx: 6 } as const;
 const BUMP_TIME = 0.15, BUMP_PX = 4;
 /** Kristall aus der Kiste: steigt 24 px auf und verschwindet dann mit Funkeln. */
 const POP_TIME = 0.4, POP_PX = 24, POP_SPIN = 22;
@@ -54,6 +54,9 @@ export class WorldView {
   private readonly blocks = new Map<number, Block>();
   private pickups: Image[] = [];
   private enemies: Image[] = [];
+  /** Steinmännchen nach Index; Kreuz am Ziel. */
+  private cairns: Image[] = [];
+  private cross: Image | null = null;
   private pops: Pop[] = [];
   private sparkles: Sparkle[] = [];
   private debris: Debris[] = [];
@@ -84,6 +87,17 @@ export class WorldView {
     this.pops = [];
     this.debris = [];
     this.sparkles = [];
+    for (const img of this.cairns) img.destroy();
+    this.cross?.destroy();
+    this.cross = null;
+    this.cairns = [];
+    for (const sp of s.level.spawns) {
+      if (sp.kind === 'checkpoint') {
+        this.cairns[sp.index] = this.scene.add.image(sp.cx * TILE, sp.cy * TILE, 'cairn').setOrigin(0).setDepth(DEPTH.marker);
+      } else if (sp.kind === 'goal') {
+        this.cross = this.scene.add.image(sp.cx * TILE, (sp.cy + 1) * TILE, 'cross').setOrigin(0, 1).setDepth(DEPTH.marker);
+      }
+    }
     const g = s.grid;
     for (let cy = 0; cy < g.height; cy++) {
       for (let cx = 0; cx < g.width; cx++) if (blockTexture(g.get(cx, cy))) this.addBlock(cx, cy);
@@ -120,6 +134,7 @@ export class WorldView {
     const dt = this.lastTime < 0 ? 0 : Math.min(0.05, Math.max(0, time - this.lastTime));
     this.lastTime = time;
     this.syncPlayer(s);
+    this.cairns.forEach((img, i) => img.setTexture(i <= s.checkpoint ? 'cairnFlag' : 'cairn'));
     this.syncBlocks(time);
     this.syncPickups(s.pickups, time);
     this.syncEnemies(s.enemies, time);
@@ -134,7 +149,7 @@ export class WorldView {
       .setTexture(playerFrame(p, p.animTime))
       .setFlipX(playerFlipX(p))
       .setPosition(Math.round(b.x + b.w / 2), Math.round(b.y + b.h))
-      .setVisible(p.invuln <= 0 || Math.floor(p.invuln * 15) % 2 === 0);
+      .setVisible(p.mode === 'dead' || p.invuln <= 0 || Math.floor(p.invuln * 15) % 2 === 0);
   }
 
   private addBlock(cx: number, cy: number): void {

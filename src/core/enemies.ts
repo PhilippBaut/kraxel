@@ -102,7 +102,7 @@ export function resolvePlayerEnemies(s: GameState, input: InputFrame, t: Tuning)
         p.jumpRising = false;
       } else events.push(...hurt(s, t));
     } else events.push(...hurt(s, t));
-    if (s.player !== p) break; // Respawn: der alte Körper zählt nicht mehr
+    if (s.phase !== 'playing') break; // gestorben: weitere Gegner zählen nicht
   }
   return events;
 }

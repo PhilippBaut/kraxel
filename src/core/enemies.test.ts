@@ -78,11 +78,13 @@ describe('Gegner', () => {
     expect(s.player.anim).toBe('hurt');
   });
 
-  it('ohne Helm: Schaden schickt Kraxel (vorläufig) zurück an den Start', () => {
+  it('ohne Helm: Schaden tötet Kraxel, genau ein death', () => {
     const s = gameFrom(['..........', '.P..k.....', '##########']);
-    const startX = s.player.body.x;
-    expect(runGame(s, [[{ right: true }, 40]])).toContainEqual({ type: 'hurt' });
-    expect(s.player.body.x).toBeLessThan(startX + 20);
+    const ev = runGame(s, [[{ right: true }, 40]]);
+    expect(ev).toContainEqual({ type: 'hurt' });
+    expect(ev.filter((e) => e.type === 'death')).toHaveLength(1);
+    expect(s.phase).toBe('dying');
+    expect(s.player.mode).toBe('dead');
   });
 
   it('während der Schonzeit richtet ein Gegner nichts an', () => {

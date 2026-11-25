@@ -1,8 +1,8 @@
 // Die Spielszene: Kachelkarte, Parallax-Hintergrund, Kamera und der feste 60-Hz-Takt.
 import Phaser from 'phaser';
-import { MAX_VIEW_W, STEP, TILE, VIEW_H } from '../config.ts';
+import { MAX_VIEW_W, START_LIVES, STEP, TILE, VIEW_H } from '../config.ts';
 import { createCamera, stepCamera, type CameraState } from '../core/camera.ts';
-import { createGame, stepGame, type GameState } from '../core/game.ts';
+import { createGame, restartLevel, stepGame, type GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import { parseLevel } from '../core/level.ts';
 import { FixedStepper } from '../core/stepper.ts';
@@ -47,6 +47,8 @@ export class PlayScene extends Phaser.Scene {
   private viewSize = { w: 0, h: VIEW_H };
   private levelPx = { w: 0, h: 0 };
   private tuning: Tuning = DEFAULT_TUNING;
+  /** Vorläufig (Task 16 ersetzt das durch die Ergebnisszene): Wartezeit nach Game Over in s. */
+  private gameOverWait = 0;
   private debug: { panel: DebugPanel; boxes: Phaser.GameObjects.Graphics; fps: PixelText } | null = null;
 
   constructor() {
@@ -93,11 +95,28 @@ export class PlayScene extends Phaser.Scene {
       const input = this.controls.sample();
       const events = stepGame(this.state, input, this.tuning, { x: this.cam.x, w: this.viewSize.w }, STEP);
       this.worldView.handle(events);
+      if (events.some((e) => e.type === 'respawn')) this.worldView.rebuild(this.state);
+      this.provisionalGameOver();
       stepCamera(this.cam, this.state.player, this.viewSize, this.levelPx, STEP);
     }
     this.scrollTo(time / 1000);
     this.worldView.sync(this.state, time / 1000);
     this.drawDebug(delta);
+  }
+
+  /** Vorläufig (Task 16 baut Titel und Ergebnis): nach Game Over 2 s warten, dann Level neu mit vollen Leben. Im Ziel bleibt Kraxel im Jubel. */
+  private provisionalGameOver(): void {
+    if (this.state.phase !== 'gameOver') {
+      this.gameOverWait = 0;
+      return;
+    }
+    this.gameOverWait += STEP;
+    if (this.gameOverWait < 2) return;
+    this.gameOverWait = 0;
+    this.state.startSession.lives = START_LIVES;
+    restartLevel(this.state);
+    this.worldView.rebuild(this.state);
+    this.cam = createCamera(this.state.player, this.viewSize, this.levelPx);
   }
 
   /** Mit ?debug: veränderbares Tuning, Panel, Trefferboxen und FPS. */
