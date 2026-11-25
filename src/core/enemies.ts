@@ -85,13 +85,15 @@ export function defeatEnemiesOn(s: GameState, cx: number, cy: number): GameEvent
 export function resolvePlayerEnemies(s: GameState, input: InputFrame, t: Tuning): GameEvent[] {
   const events: GameEvent[] = [];
   const p = s.player, pb = p.body;
+  // Fallen oder Steigen wird einmal zu Schrittbeginn entschieden: ein Abprall darf weitere Gegner nicht zu Seitenkontakt machen.
+  const falling = pb.vy > 0;
   for (const e of s.enemies) {
     if (!e.alive || !overlaps(pb, e.body)) continue;
     const stompable = ENEMY_SPEC[e.kind].stompable;
     if (p.mode === 'pound') {
       if (stompable) defeat(e, events);
       else events.push(...hurt(s, t));
-    } else if (pb.vy > 0 && s.playerPrevBottom <= e.body.y + STOMP_TOLERANCE) {
+    } else if (falling && s.playerPrevBottom <= e.body.y + STOMP_TOLERANCE) {
       if (stompable) {
         defeat(e, events);
         events.push({ type: 'stomp', x: e.body.x + e.body.w / 2, y: e.body.y });
@@ -100,6 +102,7 @@ export function resolvePlayerEnemies(s: GameState, input: InputFrame, t: Tuning)
         p.jumpRising = false;
       } else events.push(...hurt(s, t));
     } else events.push(...hurt(s, t));
+    if (s.player !== p) break; // Respawn: der alte Körper zählt nicht mehr
   }
   return events;
 }

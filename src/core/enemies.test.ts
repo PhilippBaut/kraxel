@@ -132,4 +132,29 @@ describe('Gegner', () => {
     const s = gameFrom(['....s.....', '....K.....', '..........', '..........', '....P.....', '##########']);
     expect(runGame(s, [[{ jump: true }, 30]]).map((e) => e.type)).toContain('enemyDefeated');
   });
+
+  it('zwei übereinanderliegende Käfer: ein Sprung besiegt beide ohne Schaden', () => {
+    const s = ROW('.P..kk....');
+    const [a, b] = s.enemies as [typeof s.enemies[0], typeof s.enemies[0]];
+    b.body.x = a.body.x;
+    s.player.helm = true;
+    s.player.body.x = a.body.x;
+    s.player.body.y = a.body.y - PLAYER_H - 2;
+    s.player.body.vy = 120;
+    s.player.grounded = false;
+    const ev = runGame(s, [[{}, 3]]);
+    expect(ev).not.toContainEqual({ type: 'hurt' });
+    expect(ev.filter((e) => e.type === 'enemyDefeated')).toHaveLength(2);
+    expect(s.player.helm).toBe(true);
+    expect(s.player.body.vy).toBeLessThan(-200);
+  });
+
+  it('zwei Käfer von der Seite ohne Helm: genau ein hurt im Schritt', () => {
+    const s = ROW('.P..kk....');
+    const [a, b] = s.enemies as [typeof s.enemies[0], typeof s.enemies[0]];
+    b.body.x = a.body.x;
+    s.player.body.x = a.body.x - 4;
+    const ev = runGame(s, [[{}, 1]]);
+    expect(ev.filter((e) => e.type === 'hurt')).toHaveLength(1);
+  });
 });
