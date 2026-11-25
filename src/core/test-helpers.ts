@@ -1,7 +1,7 @@
 // Nur für Tests: baut ein Raster aus Textzeilen.
 import { Cell } from './types.ts';
 import type { GameEvent, Held } from './types.ts';
-import { STEP } from '../config.ts';
+import { STEP, TILE } from '../config.ts';
 import { TileGrid } from './grid.ts';
 import { emptyHeld, InputSampler } from './input-frame.ts';
 import { createGame, stepGame } from './game.ts';
@@ -58,6 +58,18 @@ export function runPlayer(p: PlayerState, grid: TileGrid, script: Script, t: Tun
 /** Baut ein Spiel aus Textzeilen (Kopfzeilen werden davor gesetzt). */
 export function gameFrom(rows: string[], session?: Session): GameState {
   return createGame(parseLevel('test', `name: test\nworld: 1\n---\n${rows.join('\n')}`), session);
+}
+
+/** Setzt Kraxel mit den Füßen auf die Unterkante der Zelle, waagerecht mittig, ohne Tempo. Helm und übriger Zustand bleiben, `grounded` erkennt der nächste Schritt. */
+export function placePlayer(s: GameState, cx: number, cy: number): void {
+  const p = s.player, b = p.body;
+  b.x = cx * TILE + (TILE - b.w) / 2;
+  b.y = (cy + 1) * TILE - b.h;
+  b.vx = 0;
+  b.vy = 0;
+  p.mode = 'normal';
+  p.grounded = false;
+  s.playerPrevBottom = b.y + b.h;
 }
 
 /** Lässt das Spiel mit festem Schritt laufen und sammelt alle Ereignisse. */

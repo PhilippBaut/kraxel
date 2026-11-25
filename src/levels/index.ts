@@ -5,5 +5,5 @@ export const LEVELS: Record<string, string> = Object.fromEntries(
   Object.entries(files).map(([path, text]) => [path.replace(/^\.\//, '').replace(/\.txt$/, ''), text]),
 );
 
-/** Das Level, das der Titel startet. Task 17 stellt auf '1-1' um. */
-export const START_LEVEL = 'uebungsplatz';
+/** Das Level, das der Titel startet. */
+export const START_LEVEL = '1-1';
