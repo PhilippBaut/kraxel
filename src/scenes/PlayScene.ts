@@ -5,9 +5,9 @@ import { createCamera, stepCamera, type CameraState } from '../core/camera.ts';
 import { createGame, restartLevel, stepGame, type GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import { parseLevel } from '../core/level.ts';
+import { safeStorage } from '../core/save.ts';
 import { FixedStepper } from '../core/stepper.ts';
 import { DEFAULT_TUNING, isDebug, loadTuning, type Tuning } from '../core/tuning.ts';
-import type { KeyValueStore } from '../core/types.ts';
 import { DebugPanel } from '../debug/debug-panel.ts';
 import { PixelText } from '../gfx/pixel-text.ts';
 import { groundTileIndex } from '../gfx/tiles.ts';
@@ -23,15 +23,6 @@ const BACKGROUND = [
   { key: 'bg-clouds', factor: 0.32, drift: 3 },
   { key: 'bg-hills', factor: 0.5, drift: 0 },
 ] as const;
-/** localStorage, oder null wenn der Zugriff scheitert (z. B. privater Modus in Safari). */
-function safeStore(): KeyValueStore | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
 const PIT_SHADE = 0x120a1e, PIT_ALPHA = 0.85;
 /** Ab diesem Anteil der Grubentiefe ist der Verlauf voll dunkel (Entwurf: min(.85, d·1,1)). */
 const PIT_FULL_AT = PIT_ALPHA / 1.1;
@@ -124,10 +115,10 @@ export class PlayScene extends Phaser.Scene {
 
   /** Mit ?debug: veränderbares Tuning, Panel, Trefferboxen und FPS. */
   private createDebug(): void {
-    this.tuning = loadTuning(safeStore());
+    this.tuning = loadTuning(safeStorage());
     const boxes = this.add.graphics().setDepth(20);
     const fps = new PixelText(this, 2, 2, 'FPS', 'white').setScrollFactor(0).setDepth(30);
-    this.debug = { panel: new DebugPanel(this.tuning, safeStore()), boxes, fps };
+    this.debug = { panel: new DebugPanel(this.tuning, safeStorage()), boxes, fps };
   }
 
   private drawDebug(delta: number): void {
