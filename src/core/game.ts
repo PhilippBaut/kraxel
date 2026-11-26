@@ -107,7 +107,7 @@ export function killPlayer(s: GameState): GameEvent[] {
   return [{ type: 'death' }];
 }
 
-/** Raster, Kisten, Gegner und Pickups wie beim Levelstart; Kraxel am letzten Steinmännchen, ohne Helm. `session` bleibt. */
+/** Raster, Kisten, Gegner und Pickups wie beim Levelstart; Kraxel am letzten Steinmännchen, ohne Helm und Spezial-Item (`restartLevel` stellt beide vom Levelbeginn wieder her). `session` bleibt. */
 export function respawn(s: GameState): void {
   const { level } = s;
   s.grid = TileGrid.fromLevel(level);

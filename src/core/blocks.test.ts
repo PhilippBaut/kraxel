@@ -43,6 +43,12 @@ describe('Kisten und Felsblöcke', () => {
     expect(s2.grid.get(4, 1)).toBe(Cell.Empty);
   });
 
+  it('Blätterpolster von unten gibt bump, von oben nichts (das Federn kommt aus dem Spielerschritt)', () => {
+    const s = gameFrom(withCell('L'));
+    expect(hitCell(s, 4, 1, 'below')).toEqual([{ type: 'bump', cx: 4, cy: 1 }]);
+    expect(hitCell(s, 4, 1, 'above')).toEqual([]);
+  });
+
   it('Boden und leere Kiste geben bump, von oben nichts', () => {
     const s = gameFrom(CRATE);
     expect(hitCell(s, 0, 5, 'below')).toEqual([{ type: 'bump', cx: 0, cy: 5 }]);

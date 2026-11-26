@@ -5,7 +5,7 @@ import type { SpecialItem } from './types.ts';
 
 export interface RunState { lives: number; crystals: number; helm: boolean; special: SpecialItem | null }
 
-/** Frische Runde: volle Leben, keine Kristalle, kein Helm. */
+/** Frische Runde: volle Leben, keine Kristalle, kein Helm, kein Spezial-Item. */
 export function newRun(): RunState {
   return { lives: START_LIVES, crystals: 0, helm: false, special: null };
 }

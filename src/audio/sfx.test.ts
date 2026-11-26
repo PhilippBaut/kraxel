@@ -104,6 +104,10 @@ describe('soundsForEvents', () => {
     expect(new Set(['shoot', 'bounce', 'sparkle']).size).toBe(3);
     for (const n of ['shoot', 'bounce', 'sparkle'] as const) expect(SOUND_DEFS[n].notes.length).toBeGreaterThan(0);
   });
+  it('Enzian aufnehmen: powerUp und enzianStart zusammen spielen nur den Funkelklang', () => {
+    expect(ev({ type: 'powerUp', item: 'enzian' }, { type: 'enzianStart' })).toEqual(['sparkle']);
+    expect(ev({ type: 'powerUp', item: 'helm' })).toEqual(['powerUp']);
+  });
   it('Kiesel-Treffer spielt den Stomp-Klang einmal', () => {
     expect(ev({ type: 'enemyDefeated', x: 0, y: 0 }, { type: 'pebblePop', x: 0, y: 0 })).toEqual(['stomp']);
   });

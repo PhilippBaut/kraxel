@@ -95,7 +95,7 @@ export class PlayScene extends Phaser.Scene {
     if (this.fromMap) {
       if (this.registry.get('run') === undefined) this.registry.set('run', newRun());
       const run = this.registry.get('run') as RunState;
-      // restartLevel stellt Leben, Kristalle und Helm vom Levelbeginn wieder her (startSession, startHelm).
+      // restartLevel stellt Leben, Kristalle, Helm und Spezial-Item vom Levelbeginn wieder her (startSession, startHelm, startSpecial).
       this.state = createGame(levelData, sessionFor(run), { helm: run.helm, special: run.special });
     } else {
       this.state = createGame(levelData);
@@ -184,7 +184,7 @@ export class PlayScene extends Phaser.Scene {
     return this.fromMap;
   }
 
-  /** Zurück zur Karte: Edelweiß speichern, Runde fortschreiben (Leben, Kristalle, Helm), dann die Karte an diesem Punkt. */
+  /** Zurück zur Karte: Edelweiß speichern, Runde fortschreiben (Leben, Kristalle, Helm, Spezial-Item), dann die Karte an diesem Punkt. */
   goToMap(): void {
     if (this.leaving || !this.fromMap) return;
     this.leaving = true;

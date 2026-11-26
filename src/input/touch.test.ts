@@ -61,6 +61,19 @@ describe('zoneAt', () => {
     expect(zoneAt(mid + 3, y, P, false)).toBe('jump');
     expect(zoneAt(mid - 3, y, P, false)).toBe('dpad');
   });
+  it('hochkant mit sichtbarem Aktionsknopf: in den gezeichneten Kreisen von Sprung und Steuerkreuz nie action, im Aktionskreis action', () => {
+    const inCircle = (x: number, y: number, c: { cx: number; cy: number; r: number }) => Math.hypot(x - c.cx, y - c.cy) <= c.r;
+    for (const c of [P.jump, P.dpad]) {
+      for (let y = c.cy - c.r; y <= c.cy + c.r; y++) {
+        for (let x = c.cx - c.r; x <= c.cx + c.r; x++) {
+          if (!inCircle(x, y, c) || inCircle(x, y, P.action)) continue;
+          expect(zoneAt(x, y, P, true), `${x},${y}`).not.toBe('action');
+        }
+      }
+    }
+    expect(zoneAt(P.action.cx, P.action.cy, P, true)).toBe('action');
+    expect(zoneAt(P.action.cx + P.action.r - 2, P.action.cy, P, true)).toBe('action');
+  });
   it('quer: Trefferfläche bis hitR', () => {
     expect(zoneAt(L.jump.cx, L.jump.cy - L.jump.hitR + 1, L, false)).toBe('jump');
     expect(zoneAt(L.jump.cx, L.jump.cy - L.jump.hitR - 1, L, false)).toBeNull();

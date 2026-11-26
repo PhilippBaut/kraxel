@@ -1,4 +1,4 @@
-// Bedienoberfläche über dem Spielbild: Steuerfeld hochkant, Steuerkreuz, Sprungknopf und die Info-Leiste mit Pause-Knopf.
+// Bedienoberfläche über dem Spielbild: Steuerfeld hochkant, Steuerkreuz, Sprungknopf, Aktionsknopf (nur mit Schleuder, solange Kraxel spielt) und die Info-Leiste mit Pause-Knopf und Schleuder-Symbol.
 import Phaser from 'phaser';
 import { formatTime } from '../core/format.ts';
 import type { GameState } from '../core/game.ts';
@@ -107,9 +107,10 @@ export class UiScene extends Phaser.Scene {
     else this.updateHud();
   }
 
+  /** Nur im Spielen: Beim Fallen nach dem Tod und bei GAME OVER bleiben Aktionsknopf und Schleuder-Symbol weg, obwohl `special` noch gesetzt ist. */
   private carriesSling(): boolean {
     const s = (this.scene.get('play') as PlayScene).state as GameState | undefined;
-    return s?.player.special === 'sling';
+    return s !== undefined && s.phase === 'playing' && s.player.special === 'sling';
   }
 
   /** Info zum Kartenpunkt aus der Registry; nur bei Änderung neu setzen und anordnen. */

@@ -18,14 +18,6 @@ function above(cx: number, h: number) {
   p.body.x = cx * TILE + (TILE - PLAYER_W) / 2;
   return p;
 }
-/** Scheitelhöhe der Füße über der Polster-Oberkante nach dem Federn. */
-function apexAfterBounce(p: ReturnType<typeof createPlayer>, jump: boolean): number {
-  const r = runPlayer(p, GRID, [[{}, 40]]);
-  expect(r.events.filter((e) => e.type === 'bounce').length).toBe(1);
-  const q = runPlayer(p, GRID, [[{ jump }, 80]]);
-  return PAD_TOP - (q.minY + PLAYER_H);
-}
-
 describe('Blätterpolster', () => {
   it('Draufspringen federt ca. 6 Kacheln, mit gehaltenem Sprung ca. 7', () => {
     // Fall aus 4 px Höhe: die Landung löst das Federn aus, danach freier Flug.
@@ -64,7 +56,7 @@ describe('Blätterpolster', () => {
 
   it('am Rand landen: federt, wenn die Füße auf dem Polster stehen', () => {
     // Regel: federt, sobald mindestens eine Zelle unter den Füßen ein Polster ist (auch wenn die andere Boden ist).
-    // Kante: Polster ab Spalte 4. Körper ragt von Spalte 3 (Boden, Reihe 10) nur 2 px auf das Polster.
+    // Kante: Polster ab Spalte 4. Körper ragt von Spalte 3 (dort ist Reihe 10 leer, Boden liegt erst in Reihe 11) nur 2 px auf das Polster.
     const edge = above(3, 4);
     edge.body.x = 4 * TILE - (PLAYER_W - 2);
     expect(runPlayer(edge, GRID, [[{}, 10]]).events.some((e) => e.type === 'bounce')).toBe(true);
@@ -75,5 +67,13 @@ describe('Blätterpolster', () => {
     // Kein Polster unter den Füßen: kein Federn.
     const none = above(1, 4);
     expect(runPlayer(none, GRID, [[{}, 10]]).events.some((e) => e.type === 'bounce')).toBe(false);
+  });
+
+  it('Boden und Polster nebeneinander auf gleicher Höhe: ein Fuß auf dem Boden, der andere auf dem Polster federt', () => {
+    const g = gridFrom([...Array(10).fill('..........'), '##LL......', '##########']);
+    const p = createPlayer(1, 5);
+    p.body.y = PAD_TOP - 4 - PLAYER_H;
+    p.body.x = 2 * TILE - PLAYER_W / 2; // je 5 px über Boden (Spalte 1) und Polster (Spalte 2)
+    expect(runPlayer(p, g, [[{}, 10]]).events.filter((e) => e.type === 'bounce').length).toBe(1);
   });
 });

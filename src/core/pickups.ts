@@ -1,4 +1,4 @@
-// Kristalle, Edelweiß und Items (Helm) als einsammelbare Körper.
+// Kristalle, Edelweiß und Items (Helm, Schleuder, Goldener Enzian) als einsammelbare Körper.
 import { TILE } from '../config.ts';
 import { moveBody, overlaps } from './collide.ts';
 import { addCrystals } from './game.ts';

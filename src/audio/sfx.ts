@@ -50,13 +50,15 @@ export const EVENT_SOUND: Readonly<Partial<Record<GameEvent['type'], SoundName>>
 
 /**
  * Klänge für die Events eines Schritts: jeder Klang höchstens einmal (kein Stapeln bei Doppel-Stomp),
- * und bei einem Ziel entfällt extraLife, damit nur die Fanfare spielt.
+ * bei einem Ziel entfällt extraLife (nur die Fanfare), beim Enzian entfällt powerUp (nur das Funkeln).
  */
 export function soundsForEvents(events: readonly GameEvent[]): SoundName[] {
   const hasGoal = events.some((e) => e.type === 'goal');
+  const hasEnzian = events.some((e) => e.type === 'enzianStart');
   const out: SoundName[] = [];
   for (const e of events) {
     if (hasGoal && e.type === 'extraLife') continue;
+    if (hasEnzian && e.type === 'powerUp') continue;
     const n = EVENT_SOUND[e.type];
     if (n !== undefined && !out.includes(n)) out.push(n);
   }

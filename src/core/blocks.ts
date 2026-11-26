@@ -73,7 +73,7 @@ function hitBlock(s: GameState, cx: number, cy: number, from: 'below' | 'above')
     }
     return [{ type: 'bump', cx, cy }];
   }
-  if (from === 'below' && (cell === Cell.Ground || cell === Cell.CrateUsed)) return [{ type: 'bump', cx, cy }];
+  if (from === 'below' && (cell === Cell.Ground || cell === Cell.CrateUsed || cell === Cell.LeafPad)) return [{ type: 'bump', cx, cy }];
   return [];
 }
 
