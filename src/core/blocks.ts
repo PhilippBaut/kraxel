@@ -46,8 +46,10 @@ function openCrate(s: GameState, cx: number, cy: number): GameEvent[] {
   events.push({ type: 'crateOpen', cx, cy });
   if (content.kind === 'crystal') crystalFromCrate(s, cx, cy, events);
   else {
-    s.pickups.push(spawnItem(content.item, cx, cy));
-    events.push({ type: 'itemSpawn', item: content.item, cx, cy });
+    // J-Kiste: erst der Helm, dann die Schleuder. E-Kiste gibt immer den Enzian.
+    const item = content.item === 'sling' && !s.player.helm ? 'helm' : content.item;
+    s.pickups.push(spawnItem(item, cx, cy));
+    events.push({ type: 'itemSpawn', item, cx, cy });
   }
   return events;
 }

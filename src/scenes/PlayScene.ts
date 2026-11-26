@@ -96,7 +96,7 @@ export class PlayScene extends Phaser.Scene {
       if (this.registry.get('run') === undefined) this.registry.set('run', newRun());
       const run = this.registry.get('run') as RunState;
       // restartLevel stellt Leben, Kristalle und Helm vom Levelbeginn wieder her (startSession, startHelm).
-      this.state = createGame(levelData, sessionFor(run), { helm: run.helm });
+      this.state = createGame(levelData, sessionFor(run), { helm: run.helm, special: run.special });
     } else {
       this.state = createGame(levelData);
     }

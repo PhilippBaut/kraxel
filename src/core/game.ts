@@ -14,7 +14,7 @@ import type { PickupState } from './pickups.ts';
 import { jumpGravity } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
 import { Cell } from './types.ts';
-import type { CrateContent, GameEvent, InputFrame } from './types.ts';
+import type { CrateContent, GameEvent, InputFrame, SpecialItem } from './types.ts';
 
 export type Phase = 'playing' | 'dying' | 'goal' | 'gameOver';
 export interface Session { lives: number; crystals: number; time: number; edelweiss: [boolean, boolean, boolean] }
@@ -27,6 +27,8 @@ export interface GameState {
   checkpoint: number; phase: Phase; phaseTimer: number; session: Session; startSession: Session;
   /** Ob Kraxel mit Helm ins Level kam; `restartLevel` stellt das wieder her. */
   startHelm: boolean;
+  /** Spezial-Item beim Levelstart; `restartLevel` stellt es wieder her. */
+  startSpecial: SpecialItem | null;
 }
 const HURT_ANIM_TIME = 0.3;
 /** Das Gipfelkreuz ist 5 Kacheln hoch; so hoch reicht auch die Zielzone. */
@@ -59,16 +61,17 @@ function initialEnemies(level: LevelData): EnemyState[] {
 
 /** `session` wird als laufender Stand benutzt; `startSession` merkt sich eine Kopie vom Levelanfang.
  *  `opts.helm`: Kraxel startet mit Helm (aus der Spielrunde). */
-export function createGame(level: LevelData, session: Session = createSession(), opts: { helm?: boolean } = {}): GameState {
+export function createGame(level: LevelData, session: Session = createSession(), opts: { helm?: boolean; special?: SpecialItem | null } = {}): GameState {
   const state: GameState = {
     level, grid: TileGrid.fromLevel(level), crates: new Map(level.crates), multi: new Map(),
     player: createPlayer(level.start.cx, level.start.cy),
     pickups: initialPickups(level, session), enemies: initialEnemies(level),
     playerPrevBottom: 0,
     checkpoint: -1, phase: 'playing', phaseTimer: 0, session, startSession: copySession(session),
-    startHelm: opts.helm === true,
+    startHelm: opts.helm === true || (opts.special ?? null) !== null, startSpecial: opts.special ?? null,
   };
   state.player.helm = state.startHelm;
+  state.player.special = state.startSpecial;
   return state;
 }
 
@@ -120,13 +123,16 @@ export function restartLevel(s: GameState): void {
   s.checkpoint = -1;
   respawn(s);
   s.player.helm = s.startHelm;
+  s.player.special = s.startSpecial;
 }
 
-/** Mit Helm: Helm weg und kurze Schonzeit. Ohne Helm: Tod. */
+/** Reihenfolge: Enzian (kein Schaden), Spezial-Item weg, Helm weg (jeweils mit Schonzeit), sonst Tod. */
 export function damagePlayer(s: GameState, t: Tuning): GameEvent[] {
   const p = s.player;
-  if (p.helm) {
-    p.helm = false;
+  if (p.enzian > 0) return [];
+  if (p.special !== null || p.helm) {
+    if (p.special !== null) p.special = null;
+    else p.helm = false;
     p.invuln = t.hurtInvuln;
     p.hurtTimer = HURT_ANIM_TIME;
     p.anim = 'hurt';
@@ -224,6 +230,17 @@ function hitPoundCells(s: GameState, cells: Array<[number, number]>): GameEvent[
   return events;
 }
 
+/** Enzian läuft ab: danach gilt die normale Schonzeit, damit ein Gegner unter Kraxel nicht sofort trifft. */
+function stepEnzian(s: GameState, t: Tuning, dt: number): GameEvent[] {
+  const p = s.player;
+  if (p.enzian <= 0) return [];
+  p.enzian = Math.max(0, p.enzian - dt);
+  if (p.enzian > 1e-9) return [];
+  p.enzian = 0;
+  p.invuln = Math.max(p.invuln, t.hurtInvuln);
+  return [{ type: 'enzianEnd' }];
+}
+
 export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewWindow, dt: number = STEP): GameEvent[] {
   if (s.phase === 'dying') return stepDying(s, t, dt);
   if (s.phase === 'goal') {
@@ -238,6 +255,7 @@ export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewW
   if (head) events.push(...hitCell(s, head[0], head[1], 'below'));
   events.push(...hitPoundCells(s, r.poundCells));
   stepBlocks(s, dt);
+  events.push(...stepEnzian(s, t, dt));
   stepPickups(s.pickups, s.grid, dt);
   stepEnemies(s.enemies, s.grid, view, dt);
   events.push(...resolvePlayerEnemies(s, input, t));

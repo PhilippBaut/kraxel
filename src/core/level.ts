@@ -22,10 +22,12 @@ export class LevelError extends Error {
 }
 
 const CELL_CHARS: Record<string, Cell> = {
-  '#': Cell.Ground, B: Cell.Rock, K: Cell.Crate, M: Cell.Crate, H: Cell.Crate, V: Cell.HiddenCrate,
+  '#': Cell.Ground, B: Cell.Rock, K: Cell.Crate, M: Cell.Crate, H: Cell.Crate, J: Cell.Crate, E: Cell.Crate, V: Cell.HiddenCrate,
 };
 const CRATE_CHARS: Record<string, CrateContent> = {
-  K: { kind: 'crystal' }, M: { kind: 'multi' }, H: { kind: 'item', item: 'helm' }, V: { kind: 'crystal' },
+  K: { kind: 'crystal' }, M: { kind: 'multi' }, H: { kind: 'item', item: 'helm' },
+  /** J: Helm, wenn Kraxel keinen trägt (entscheidet `openCrate`), sonst Schleuder. */
+  J: { kind: 'item', item: 'sling' }, E: { kind: 'item', item: 'enzian' }, V: { kind: 'crystal' },
 };
 const SPAWN_CHARS: Record<string, { kind: SpawnKind; index: number }> = {
   c: { kind: 'crystal', index: 0 }, '1': { kind: 'edelweiss', index: 0 }, '2': { kind: 'edelweiss', index: 1 },

@@ -4,11 +4,13 @@ import { isOnGround, moveBody, wallAt } from './collide.ts';
 import type { TileGrid } from './grid.ts';
 import { DEFAULT_TUNING, jumpGravity, jumpVelocity } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
-import type { Body, GameEvent, InputFrame } from './types.ts';
+import type { Body, GameEvent, InputFrame, SpecialItem } from './types.ts';
 
 export type PlayerMode = 'normal' | 'wallSlide' | 'climb' | 'poundHang' | 'pound' | 'poundRecover' | 'dead' | 'goal';
 export type PlayerAnim = 'idle' | 'walk' | 'run' | 'skid' | 'jump' | 'fall' | 'wallSlide' | 'climb' | 'pound' | 'hurt' | 'dead' | 'cheer';
 
+/** So lange wirkt der Goldene Enzian (s). */
+export const ENZIAN_TIME = 8;
 export const PLAYER_W = 10;
 export const PLAYER_H = 14;
 const SKID_MIN_SPEED = 30;
@@ -22,7 +24,12 @@ export interface PlayerState {
   grounded: boolean; coyote: number; jumpBuffer: number; jumpRising: boolean;
   runTimer: number; runDir: -1 | 0 | 1; speedCap: number;
   wallDir: -1 | 0 | 1; wallLock: number; climbLeft: number;
-  helm: boolean; invuln: number; anim: PlayerAnim; animTime: number;
+  helm: boolean;
+  /** Spezial-Item (höchstens eins); ein Treffer nimmt es vor dem Helm. */
+  special: SpecialItem | null;
+  /** Restzeit des Goldenen Enzians in s; 0 = nicht aktiv. */
+  enzian: number;
+  invuln: number; anim: PlayerAnim; animTime: number;
   /** Restzeit der Schmerz-Haltung in s (`anim = 'hurt'`). */
   hurtTimer: number;
   /** Restzeit des Hochhievens in s: Kraxel schiebt zur Wand (`wallDir`), bis er oben steht. */
@@ -43,7 +50,7 @@ export function createPlayer(cx: number, cy: number): PlayerState {
     grounded: false, coyote: 0, jumpBuffer: 0, jumpRising: false,
     runTimer: 0, runDir: 0, speedCap: DEFAULT_TUNING.walkSpeed,
     wallDir: 0, wallLock: 0, climbLeft: DEFAULT_TUNING.climbBudget,
-    helm: false, invuln: 0, anim: 'idle', animTime: 0, hurtTimer: 0, mantleTimer: 0,
+    helm: false, special: null, enzian: 0, invuln: 0, anim: 'idle', animTime: 0, hurtTimer: 0, mantleTimer: 0,
   };
 }
 

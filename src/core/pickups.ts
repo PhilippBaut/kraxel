@@ -2,6 +2,7 @@
 import { TILE } from '../config.ts';
 import { moveBody, overlaps } from './collide.ts';
 import { addCrystals } from './game.ts';
+import { ENZIAN_TIME } from './player.ts';
 import type { GameState } from './game.ts';
 import type { TileGrid } from './grid.ts';
 import type { EntitySpawn } from './level.ts';
@@ -75,6 +76,15 @@ export function collectPickups(s: GameState): GameEvent[] {
     } else if (p.kind === 'edelweiss') {
       s.session.edelweiss[p.index] = true;
       events.push({ type: 'edelweiss', index: p.index });
+    } else if (p.item === 'enzian') {
+      s.player.enzian = ENZIAN_TIME;
+      events.push({ type: 'powerUp', item: 'enzian' }, { type: 'enzianStart' });
+    } else if (p.item === 'sling') {
+      if (s.player.special === null) {
+        s.player.special = 'sling';
+        s.player.helm = true; // die Schleuder schließt den Helmschutz ein
+        events.push({ type: 'powerUp', item: 'sling' });
+      } else events.push(...addCrystals(s, HELM_BONUS_CRYSTALS));
     } else if (!s.player.helm) {
       s.player.helm = true;
       events.push({ type: 'powerUp', item: 'helm' });

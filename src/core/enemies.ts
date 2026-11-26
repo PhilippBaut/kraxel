@@ -90,7 +90,8 @@ export function resolvePlayerEnemies(s: GameState, input: InputFrame, t: Tuning)
   for (const e of s.enemies) {
     if (!e.alive || !overlaps(pb, e.body)) continue;
     const stompable = ENEMY_SPEC[e.kind].stompable;
-    if (p.mode === 'pound') {
+    if (p.enzian > 0) defeat(e, events); // Enzian: Berührung besiegt jeden Gegner
+    else if (p.mode === 'pound') {
       if (stompable) defeat(e, events);
       else events.push(...hurt(s, t));
     } else if (falling && s.playerPrevBottom <= e.body.y + STOMP_TOLERANCE) {
