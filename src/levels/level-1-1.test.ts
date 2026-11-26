@@ -113,6 +113,26 @@ describe('Level 1-1: Edelweiß', () => {
     expect(s.session.edelweiss[1]).toBe(true);
   });
 
+  it('Edelweiß 2 per Kraxeln, egal wann oben gedrückt wird und mit welchem Anlauf', () => {
+    // Abgesprungen wird an der Kante der Hochfläche (k = 0) oder eine Kachel davor (k = 1, dann mit Anlauf aus Spalte 88 oder weiter hinten).
+    // Ein Stehsprung eine Kachel vor der Kante oder ein Absprung noch weiter hinten ist zu weit für den Schacht: das gilt auch ohne Überhang.
+    for (let cx = PLATEAU.cx; cx <= PLATEAU.cx + 7; cx++) {
+      for (const k of [0, 1]) {
+        if (k === 1 && cx < PLATEAU.cx + 2) continue;
+        for (const upAfter of [0, 5, 10, 20]) {
+          const s = calm();
+          placePlayer(s, cx, PLATEAU.cy);
+          runGame(s, [[{}, 2]]);
+          // Anlauf nach links bis zur gewünschten Absprungstelle.
+          for (let n = 0; n < 400 && s.player.body.x > (PLATEAU.cx + k) * TILE + 3; n++) runGame(s, [[{ left: true }, 1]]);
+          const jumpPart: Script = upAfter > 0 ? [[{ left: true, jump: true }, upAfter]] : [];
+          runGame(s, [...jumpPart, [{ left: true, up: true, jump: true }, 120 - upAfter], [{ left: true }, 20]]);
+          expect(s.session.edelweiss[1], `Start ${cx}, Absprung ${k} Kachel(n) vor der Kante, oben nach ${upAfter}`).toBe(true);
+        }
+      }
+    }
+  });
+
   it('Edelweiß 2 ist ohne Kraxeln nicht erreichbar', () => {
     for (let cx = PLATEAU.cx; cx <= PLATEAU.cx + 7; cx++) {
       for (let run = 0; run <= 60; run += 4) {
@@ -323,6 +343,16 @@ describe('Level 1-1: Lehrstellen auf dem Hauptweg', () => {
     placePlayer(s, CLIMB_FOOT.cx, CLIMB_FOOT.cy);
     runGame(s, [[{}, 2], [{ right: true, jump: true }, 22], [{ right: true, up: true, jump: true }, 40], [{ right: true }, 20]]);
     expect([s.player.grounded, feetRow(s)]).toEqual([true, TOWER_FEET]);
+  });
+
+  it('Kletterwand: oben gleich mit dem Sprung drücken klappt', () => {
+    for (const upAfter of [0, 3, 6, 10, 22]) {
+      const s = calm();
+      placePlayer(s, CLIMB_FOOT.cx, CLIMB_FOOT.cy);
+      const jumpPart: Script = upAfter > 0 ? [[{ right: true, jump: true }, upAfter]] : [];
+      runGame(s, [[{}, 2], ...jumpPart, [{ right: true, up: true, jump: true }, 60 - upAfter], [{ right: true }, 20]]);
+      expect([s.player.grounded, feetRow(s)], `oben nach ${upAfter}`).toEqual([true, TOWER_FEET]);
+    }
   });
 
   it('Kletterwand: ohne Kraxeln nicht, auch nicht mit Anlauf', () => {
