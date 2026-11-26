@@ -2,13 +2,15 @@
 import Phaser from 'phaser';
 import type { Sfx } from '../audio/sfx.ts';
 import { TILE, VIEW_H } from '../config.ts';
-import { GLYPH_H } from '../gfx/font.ts';
 import { WORLDS } from '../gfx/palette.ts';
 import { OutlinedText } from '../gfx/pixel-text.ts';
+import { GLYPH_H, textWidth } from '../gfx/font.ts';
 import type { Controls } from '../input/controls.ts';
 import { isShortcut } from '../input/keyboard.ts';
 import { START_LEVEL } from '../levels/index.ts';
 import { TEXT } from '../ui-text.ts';
+import type { Rect } from '../core/types.ts';
+import { BUTTON_H, EDGE, FILL, FILL_HI } from './menu.ts';
 import type { Layout } from '../view/layout.ts';
 
 /** Dieselben Ebenen wie im Spiel; die Wolken ziehen. */
@@ -53,6 +55,7 @@ export class TitleScene extends Phaser.Scene {
   private screenW = 0;
   private kraxelX = -KRAXEL_W;
   private starting = false;
+  private controlsBtn!: { gfx: Phaser.GameObjects.Graphics; label: OutlinedText; rect: Rect };
 
   constructor() {
     super('title');
@@ -70,10 +73,13 @@ export class TitleScene extends Phaser.Scene {
     this.kraxel = this.add.image(0, 0, WALK_FRAMES[0]).setOrigin(0, 1);
     this.logo = new OutlinedText(this, 0, 0, TEXT.TITLE, 'ring').setScale(LOGO_SCALE).setFaceTint(LOGO_TINT);
     this.tapText = new OutlinedText(this, 0, 0, TEXT.TAP_TO_START, 'ring');
+    const gfx = this.add.graphics(); // vor dem Text, sonst deckt er ihn zu
+    const label = new OutlinedText(this, 0, 0, TEXT.CONTROLS);
+    this.controlsBtn = { gfx, label, rect: { x: 0, y: 0, w: 0, h: BUTTON_H } };
     this.hint = isIosBrowser() ? TEXT.IOS_HINT.map((line) => new OutlinedText(this, 0, 0, line, 'ring')) : [];
 
     this.applyLayout(this.registry.get('layout') as Layout);
-    const offTap = this.controls.onTap(() => this.startGame());
+    const offTap = this.controls.onTap((x, y) => this.onTap(x, y));
     window.addEventListener('keydown', this.onKey);
     this.game.events.on('layout', this.applyLayout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -93,8 +99,23 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private readonly onKey = (e: KeyboardEvent): void => {
-    if (!e.repeat && !isShortcut(e)) this.startGame();
+    if (!e.repeat && !isShortcut(e) && this.scene.isActive()) this.startGame();
   };
+
+  /** Tipp auf STEUERUNG öffnet den Editor, jeder andere Tipp startet das Spiel. */
+  private onTap(x: number, y: number): void {
+    if (!this.scene.isActive() || this.starting) return; // schläft, solange der Editor offen ist
+    const r = this.controlsBtn.rect, m = 2;
+    if (x >= r.x - m && x < r.x + r.w + m && y >= r.y - m && y < r.y + r.h + m) {
+      this.sfx.unlock();
+      this.sfx.play('select');
+      this.controls.sample();
+      this.scene.launch('controls', { returnTo: 'title' });
+      this.scene.sleep();
+      return;
+    }
+    this.startGame();
+  }
 
   /** Tipp oder Taste: Ton entsperren, Spiel und Info-Leiste starten. */
   private startGame(): void {
@@ -125,5 +146,15 @@ export class TitleScene extends Phaser.Scene {
     const tapY = logoY + GLYPH_H * LOGO_SCALE + 30;
     center(this.tapText, tapY);
     this.hint.forEach((t, i) => center(t, tapY + 20 + i * (GLYPH_H + 3)));
+
+    // Kleiner Knopf unten, über der Sicherheitskante.
+    const b = this.controlsBtn, w = textWidth(TEXT.CONTROLS) + 16;
+    b.rect = { x: Math.floor((l.gameW - w) / 2), y: l.controlsArea.y + l.controlsArea.h - BUTTON_H - 4, w, h: BUTTON_H };
+    const r = b.rect;
+    b.gfx.clear();
+    b.gfx.fillStyle(EDGE).fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+    b.gfx.fillStyle(FILL).fillRect(r.x, r.y, r.w, r.h);
+    b.gfx.fillStyle(FILL_HI).fillRect(r.x, r.y, r.w, 1);
+    b.label.setPosition(r.x + Math.floor((r.w - b.label.width) / 2), r.y + 4);
   }
 }

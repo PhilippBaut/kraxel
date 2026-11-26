@@ -4,6 +4,7 @@ import { Sfx } from './audio/sfx.ts';
 import { loadSave, safeStorage } from './core/save.ts';
 import { Controls } from './input/controls.ts';
 import { BootScene } from './scenes/BootScene.ts';
+import { ControlsScene } from './scenes/ControlsScene.ts';
 import { GalleryScene } from './scenes/GalleryScene.ts';
 import { PauseScene } from './scenes/PauseScene.ts';
 import { PlayScene } from './scenes/PlayScene.ts';
@@ -57,7 +58,7 @@ const game = new Phaser.Game({
   input: { keyboard: false, mouse: false, touch: false, gamepad: false },
   audio: { noAudio: true },
   // Reihenfolge = Zeichenreihenfolge: UiScene über PlayScene, Pause und Ergebnis über beiden.
-  scene: [BootScene, TitleScene, PlayScene, UiScene, PauseScene, ResultScene, GalleryScene],
+  scene: [BootScene, TitleScene, PlayScene, UiScene, PauseScene, ResultScene, GalleryScene, ControlsScene],
 });
 
 const controls = new Controls(parent);

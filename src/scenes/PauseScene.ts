@@ -33,9 +33,10 @@ export class PauseScene extends Phaser.Scene {
       { label: () => TEXT.RESUME, run: () => this.resume() },
       { label: () => TEXT.RESTART, run: () => this.restart() },
       { label: () => (this.sfx.muted ? TEXT.SOUND_OFF : TEXT.SOUND_ON), run: () => this.toggleSound() },
+      { label: () => TEXT.CONTROLS, run: () => this.openEditor() },
     ]);
     this.applyLayout(this.registry.get('layout') as Layout);
-    const offPause = controls.onPause(() => this.resume());
+    const offPause = controls.onPause(() => { if (this.scene.isActive()) this.resume(); });
     this.game.events.on('layout', this.applyLayout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offPause();
@@ -53,6 +54,13 @@ export class PauseScene extends Phaser.Scene {
     this.closing = true;
     this.scene.resume('play');
     this.scene.stop();
+  }
+
+  /** Knopf-Editor öffnen; das Pausenmenü schläft, bis er sich schließt. */
+  private openEditor(): void {
+    if (this.closing) return;
+    this.scene.launch('controls', { returnTo: 'pause' });
+    this.scene.sleep();
   }
 
   private restart(): void {

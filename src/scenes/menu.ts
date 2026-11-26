@@ -13,10 +13,10 @@ export interface MenuItem {
   run: () => void;
 }
 
-const BUTTON_H = 15;
+export const BUTTON_H = 15;
 const BUTTON_GAP = 4, MIN_W = 88, PAD_X = 8;
 /** Farben wie Steuerkreuz und Sprungknopf im Entwurf. */
-const EDGE = 0x16112a, FILL = 0x5b4f80, FILL_HI = 0x8478b0, SEL = 0x2ec4b6, SEL_HI = 0xa6f5e9;
+export const EDGE = 0x16112a, FILL = 0x5b4f80, FILL_HI = 0x8478b0, SEL = 0x2ec4b6, SEL_HI = 0xa6f5e9;
 /** Steuerfeld-Farben aus dem Entwurf (`drawPortrait`). */
 const PANEL_FILL = 0x231c37, PANEL_LIGHT = 0x4a3d6b, PANEL_DARK = 0x120e1f;
 /** Abdunkeln mit DARK aus der Palette. */
@@ -37,6 +37,7 @@ export function drawPanel(g: Phaser.GameObjects.Graphics, r: Rect): void {
 
 export class Menu {
   private readonly game: Phaser.Game;
+  private readonly scene: Phaser.Scene;
   private readonly controls: Controls;
   private readonly sfx: Sfx;
   private readonly items: readonly MenuItem[];
@@ -54,6 +55,7 @@ export class Menu {
   /** `lockMs`: so lange nach dem Öffnen nichts auslösen (wer im Ziel noch Sprung hämmert, startet nicht gleich neu). */
   constructor(scene: Phaser.Scene, items: readonly MenuItem[], lockMs = 0) {
     this.game = scene.game;
+    this.scene = scene;
     this.unlockAt = scene.game.loop.time + lockMs;
     this.controls = scene.registry.get('controls') as Controls;
     this.sfx = scene.registry.get('sfx') as Sfx;
@@ -100,7 +102,8 @@ export class Menu {
   }
 
   private tap(x: number, y: number): void {
-    if (this.locked) return;
+    // Schläft die Szene (Knopf-Editor offen), reagiert das Menü nicht.
+    if (this.locked || !this.scene.scene.isActive()) return;
     const i = this.rects.findIndex((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
     if (i < 0) return;
     // Liegt der Knopf über einer Steuerzone, hat derselbe Finger gerade „Sprung“ gedrückt: diese Flanke schlucken.

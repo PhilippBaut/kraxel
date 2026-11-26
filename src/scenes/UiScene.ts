@@ -2,8 +2,8 @@
 import Phaser from 'phaser';
 import { formatTime } from '../core/format.ts';
 import type { GameState } from '../core/game.ts';
-import { canvas2d } from '../gfx/bake.ts';
 import { GLYPH_H, textWidth } from '../gfx/font.ts';
+import { drawPanelEdge, ensurePanelPattern, PATTERN_KEY } from '../gfx/panel.ts';
 import { OutlinedText } from '../gfx/pixel-text.ts';
 import { BUTTON_RADII, dpadKey, ensureButtonTextures, roundButtonKey } from '../gfx/textures.ts';
 import type { Controls } from '../input/controls.ts';
@@ -11,9 +11,6 @@ import type { Circle, Layout } from '../view/layout.ts';
 import type { PauseScene } from './PauseScene.ts';
 import type { PlayScene } from './PlayScene.ts';
 
-/** Ruhiges Punktmuster und Kante oben, wie `drawPortrait` im Entwurf. */
-const PANEL_FILL = '#231c37', PANEL_DOT = '#2b2343', EDGE_LIGHT = 0x4a3d6b, EDGE_DARK = 0x120e1f;
-const PATTERN_KEY = 'panel-pattern';
 const NONE = { left: false, right: false, up: false, down: false };
 /** Info-Leiste quer: dunkle, halbtransparente Leiste oben. */
 const STRIP = 0x1b1230, STRIP_ALPHA = 0.55;
@@ -22,17 +19,6 @@ const PAUSE_PORTRAIT = 0x6d5f99, PAUSE_LANDSCAPE = 0xffffff, PAUSE_LANDSCAPE_ALP
 const PAUSE_BAR_W = 2, PAUSE_BAR_GAP = 3;
 /** Symbole: Kristall und Edelweiß 7×7, Kopf 8×6. Edelweiß alle 9 px. */
 const ICON = 7, HEAD_W = 8, ICON_GAP = 2, GROUP_GAP = 8, EDEL_STEP = 9;
-
-/** 4×8-Kachel: Punkte alle 4 px, jede zweite Reihe um 2 px versetzt. */
-function panelPattern(): HTMLCanvasElement {
-  const [c, ctx] = canvas2d(4, 8);
-  ctx.fillStyle = PANEL_FILL;
-  ctx.fillRect(0, 0, 4, 8);
-  ctx.fillStyle = PANEL_DOT;
-  ctx.fillRect(0, 2, 1, 1);
-  ctx.fillRect(2, 6, 1, 1);
-  return c;
-}
 
 /** Linke obere Ecke einer Knopf-Textur, deren Mitte bei r+1 liegt (Steuerkreuz und runde Knöpfe). */
 function placeButton(img: Phaser.GameObjects.Image, c: Circle, alpha: number): void {
@@ -65,7 +51,7 @@ export class UiScene extends Phaser.Scene {
 
   create(): void {
     this.controls = this.registry.get('controls') as Controls;
-    if (!this.textures.exists(PATTERN_KEY)) this.textures.addCanvas(PATTERN_KEY, panelPattern());
+    ensurePanelPattern(this);
     this.panel = this.add.tileSprite(0, 0, 4, 8, PATTERN_KEY).setOrigin(0);
     this.panelEdge = this.add.graphics();
     this.dpad = this.add.image(0, 0, dpadKey(BUTTON_RADII.dpad[0], NONE)).setOrigin(0);
@@ -111,6 +97,7 @@ export class UiScene extends Phaser.Scene {
 
   /** Tipp auf den Pause-Knopf: pausieren, im Pausenmenü weiterspielen. */
   private onTap(x: number, y: number): void {
+    if (this.editing) return;
     const p = this.layout.pauseHit;
     if (x < p.x || x >= p.x + p.w || y < p.y || y >= p.y + p.h) return;
     if (this.scene.isActive('pause')) (this.scene.get('pause') as PauseScene).resume();
@@ -149,8 +136,7 @@ export class UiScene extends Phaser.Scene {
     this.panelEdge.clear();
     if (p) {
       this.panel.setPosition(p.x, p.y).setSize(p.w, p.h);
-      this.panelEdge.fillStyle(EDGE_LIGHT).fillRect(p.x, p.y, p.w, 1);
-      this.panelEdge.fillStyle(EDGE_DARK).fillRect(p.x, p.y + 1, p.w, 1);
+      drawPanelEdge(this.panelEdge, p);
     }
     ensureButtonTextures(this, 'dpad', l.dpad.r);
     ensureButtonTextures(this, 'jump', l.jump.r);
