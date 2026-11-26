@@ -43,11 +43,19 @@ describe('Platzhalter-Level', () => {
     }
   });
 
-  it('1-3: Der Seitenweg (Stufe, Plattform) führt mit normalen Sprüngen zum G und meldet secret', () => {
+  it('1-3: Dauerlauf mit Sprüngen nach rechts erreicht das normale Ziel Z, nicht das geheime G', () => {
+    const l = parseLevel('1-3', LEVELS['1-3']);
+    const s = createGame(l);
+    const ev = dauerlauf(s);
+    expect(ev.find((e) => e.type === 'goal')).toMatchObject({ exit: 'normal' });
+  });
+
+  it('1-3: Ein bewusster Abstecher (nach links, Stufe, Plattform) führt zum G und meldet secret', () => {
     const l = parseLevel('1-3', LEVELS['1-3']);
     const g = l.spawns.find((e) => e.kind === 'secretGoal')!;
     const s = createGame(l);
-    const ev = dauerlauf(s);
+    const ev: GameEvent[] = [];
+    for (let i = 0; i < 30 && s.phase !== 'goal'; i++) ev.push(...runGame(s, [[{ left: true }, 20], [{ left: true, jump: true }, 24]]));
     expect(ev.find((e) => e.type === 'goal')).toMatchObject({ exit: 'secret' });
     expect(Math.abs(s.player.body.x / TILE - g.cx)).toBeLessThan(2);
     expect(s.session.lives).toBe(5);
