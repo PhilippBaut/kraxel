@@ -1,6 +1,6 @@
 # Kraxel Meilenstein 2: Graswelt komplett, Design
 
-**Status:** Entwurf, im Gespräch am 26.11.2026 abgestimmt. Wartet auf Freigabe.
+**Status:** freigegeben vom Repo-Inhaber am 26.11.2026 („Ja, freigegeben“).
 **Baut auf:** `docs/superpowers/specs/2026-11-23-kraxel-design.md` (Grund-Design, hier „Spec M1“) und dem fertigen Meilenstein 1 samt Knopf-Editor.
 Kennzeichnung: **[Inhaber]** hat der Repo-Inhaber so gesagt. **[Vorschlag, bestätigt]** stammt von mir und wurde mit „Passt so“ angenommen. **[Festlegung]** ist meine Entscheidung im Rahmen des Abgestimmten.
 
