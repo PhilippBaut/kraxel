@@ -15,7 +15,7 @@ export type SpriteName =
   | KraxelFrame
   | 'crate' | 'crateUsed' | 'crystal' | 'edel' | 'helm' | 'sling' | 'glider' | 'crampon' | 'enzian'
   | 'beetle' | 'beetleFlat' | 'snail' | 'stone' | 'cloud' | 'groundTop' | 'groundFill'
-  | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'cross' | 'cairn' | 'cairnFlag' | 'debris';
+  | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'cross' | 'crossGold' | 'cairn' | 'cairnFlag' | 'debris';
 
 export const KRAXEL_FRAMES: readonly SpriteName[] = KRAXEL_NAMES;
 
@@ -547,13 +547,14 @@ export function buildSprites(): Record<string, PixelGrid> {
   const helmets = Object.fromEntries(KRAXEL_NAMES.map((n) => [helmName(n), buildFrame(FRAMES[n], true)]));
   const iEdel = strs(I_EDEL);
   const base = strs(CAIRN);
+  const crossGrid = cross();
   const sprites: Record<SpriteName, PixelGrid> = {
     ...frames, ...crates(), ...beetles(),
     crystal: strs(CRYSTAL), edel: edel(), helm: helm(), sling: sling(), glider: glider(),
     crampon: crampon(), enzian: enzian(), snail: snail(), stone: stone(), cloud: cloud(),
     groundTop: groundTop(), groundFill: groundFill(),
     iCrystal: strs(I_CRYSTAL), iEdel, iEdelOff: recolor(iEdel, { V: 'w', Y: 'w' }), iHead: strs(I_HEAD),
-    cross: cross(), cairn: base, cairnFlag: cairnFlag(base), debris: strs(DEBRIS),
+    cross: crossGrid, crossGold: recolor(crossGrid, { J: 'Q', j: 'q' }), cairn: base, cairnFlag: cairnFlag(base), debris: strs(DEBRIS),
   };
   return { ...sprites, ...helmets };
 }

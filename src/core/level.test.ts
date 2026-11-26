@@ -50,6 +50,12 @@ describe('validateLevel', () => {
     expect(validateLevel(parseLevel('t', 'name: x\nworld: 1\n---\nP.k\n##.'), NONE)).toHaveLength(1);
     expect(validateLevel(parseLevel('t', 'name: x\nworld: 1\n---\nP.k\n###'), NONE)).toEqual([]);
   });
+  it('zwei G sind ungültig, eines ist gültig, G ersetzt Z nicht', () => {
+    const base = (row: string) => parseLevel('t', `name: x\nworld: 1\n---\n${row}\nP.......\n########`);
+    expect(validateLevel(base('G...G'), NONE)).toHaveLength(1);
+    expect(validateLevel(base('G...Z'), { requireEdelweiss: false, requireGoal: true })).toEqual([]);
+    expect(validateLevel(base('G'), { requireEdelweiss: false, requireGoal: true })).toHaveLength(1);
+  });
   it('ein vollständiges Level ist gültig', () => {
     const t = 'name: x\nworld: 1\n---\n.1.2.3.Z\nP.......\n########';
     expect(validateLevel(parseLevel('t', t), BOTH)).toEqual([]);

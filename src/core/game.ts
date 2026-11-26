@@ -4,7 +4,8 @@ import { createEnemy, resolvePlayerEnemies, stepEnemies } from './enemies.ts';
 import type { EnemyState } from './enemies.ts';
 import { hitCell, primaryCell, stepBlocks } from './blocks.ts';
 import { TileGrid } from './grid.ts';
-import type { LevelData } from './level.ts';
+import type { EntitySpawn, LevelData } from './level.ts';
+import type { ExitKind } from './save.ts';
 import { isOnGround, moveBody, overlaps } from './collide.ts';
 import { createPlayer, stepPlayer } from './player.ts';
 import type { PlayerState } from './player.ts';
@@ -24,6 +25,8 @@ export interface GameState {
   /** Fußhöhe (Unterkante) des Spielers vor dem letzten Schritt, fürs Draufspringen. */
   playerPrevBottom: number;
   checkpoint: number; phase: Phase; phaseTimer: number; session: Session; startSession: Session;
+  /** Ob Kraxel mit Helm ins Level kam; `restartLevel` stellt das wieder her. */
+  startHelm: boolean;
 }
 const HURT_ANIM_TIME = 0.3;
 /** Das Gipfelkreuz ist 5 Kacheln hoch; so hoch reicht auch die Zielzone. */
@@ -54,15 +57,19 @@ function initialEnemies(level: LevelData): EnemyState[] {
   return level.spawns.filter((sp) => sp.kind === 'beetle' || sp.kind === 'snail').map(createEnemy);
 }
 
-/** `session` wird als laufender Stand benutzt; `startSession` merkt sich eine Kopie vom Levelanfang. */
-export function createGame(level: LevelData, session: Session = createSession()): GameState {
-  return {
+/** `session` wird als laufender Stand benutzt; `startSession` merkt sich eine Kopie vom Levelanfang.
+ *  `opts.helm`: Kraxel startet mit Helm (aus der Spielrunde). */
+export function createGame(level: LevelData, session: Session = createSession(), opts: { helm?: boolean } = {}): GameState {
+  const state: GameState = {
     level, grid: TileGrid.fromLevel(level), crates: new Map(level.crates), multi: new Map(),
     player: createPlayer(level.start.cx, level.start.cy),
     pickups: initialPickups(level, session), enemies: initialEnemies(level),
     playerPrevBottom: 0,
     checkpoint: -1, phase: 'playing', phaseTimer: 0, session, startSession: copySession(session),
+    startHelm: opts.helm === true,
   };
+  state.player.helm = state.startHelm;
+  return state;
 }
 
 /** 100 Kristalle ergeben ein Extraleben. */
@@ -112,6 +119,7 @@ export function restartLevel(s: GameState): void {
   s.session.time = 0;
   s.checkpoint = -1;
   respawn(s);
+  s.player.helm = s.startHelm;
 }
 
 /** Mit Helm: Helm weg und kurze Schonzeit. Ohne Helm: Tod. */
@@ -139,10 +147,18 @@ function touchCheckpoints(s: GameState): GameEvent[] {
   return events;
 }
 
-/** Zielzone: die Spalte des Z, von der Zellunterkante 5 Kacheln hoch. Höhere Berührung gibt mehr. */
+/** Zielzone: die Spalte von Z oder G, von der Zellunterkante 5 Kacheln hoch. Höhere Berührung gibt mehr.
+ *  Wer zuerst berührt wird, beendet das Level; Z meldet `normal`, G `secret`. */
 function touchGoal(s: GameState): GameEvent[] {
-  const sp = s.level.spawns.find((e) => e.kind === 'goal');
-  if (!sp) return [];
+  for (const sp of s.level.spawns) {
+    if (sp.kind !== 'goal' && sp.kind !== 'secretGoal') continue;
+    const events = touchGoalAt(s, sp, sp.kind === 'secretGoal' ? 'secret' : 'normal');
+    if (events.length) return events;
+  }
+  return [];
+}
+
+function touchGoalAt(s: GameState, sp: EntitySpawn, exit: ExitKind): GameEvent[] {
   const bottom = (sp.cy + 1) * TILE, b = s.player.body;
   if (!overlaps(b, { x: sp.cx * TILE, y: bottom - GOAL_HEIGHT_TILES * TILE, w: TILE, h: GOAL_HEIGHT_TILES * TILE })) return [];
   const h = (bottom - (b.y + b.h)) / TILE;
@@ -160,7 +176,7 @@ function touchGoal(s: GameState): GameEvent[] {
   s.player.anim = 'cheer';
   s.player.body.vx = 0;
   s.player.body.vy = 0;
-  events.push({ type: 'goal', bonusCrystals, extraLife });
+  events.push({ type: 'goal', bonusCrystals, extraLife, exit });
   return events;
 }
 

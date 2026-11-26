@@ -3,7 +3,7 @@ import { Cell } from './types.ts';
 import type { CrateContent } from './types.ts';
 import { TileGrid } from './grid.ts';
 
-export type SpawnKind = 'crystal' | 'edelweiss' | 'beetle' | 'snail' | 'checkpoint' | 'goal';
+export type SpawnKind = 'crystal' | 'edelweiss' | 'beetle' | 'snail' | 'checkpoint' | 'goal' | 'secretGoal';
 export interface EntitySpawn { kind: SpawnKind; cx: number; cy: number; index: number }
 export interface LevelData {
   id: string; name: string; world: number; width: number; height: number;
@@ -31,6 +31,7 @@ const SPAWN_CHARS: Record<string, { kind: SpawnKind; index: number }> = {
   c: { kind: 'crystal', index: 0 }, '1': { kind: 'edelweiss', index: 0 }, '2': { kind: 'edelweiss', index: 1 },
   '3': { kind: 'edelweiss', index: 2 }, k: { kind: 'beetle', index: 0 }, s: { kind: 'snail', index: 0 },
   S: { kind: 'checkpoint', index: 0 }, Z: { kind: 'goal', index: 0 },
+  G: { kind: 'secretGoal', index: 0 },
 };
 
 export function parseLevel(id: string, text: string): LevelData {
@@ -92,6 +93,9 @@ export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requ
 
   const goals = l.spawns.filter((s) => s.kind === 'goal').length;
   if (o.requireGoal && goals !== 1) problems.push(`Das Gipfelkreuz Z muss genau einmal vorkommen, gefunden: ${goals}.`);
+
+  const secrets = l.spawns.filter((s) => s.kind === 'secretGoal').length;
+  if (secrets > 1) problems.push(`Das geheime Gipfelkreuz G darf höchstens einmal vorkommen, gefunden: ${secrets}.`);
 
   const edel = l.spawns.filter((s) => s.kind === 'edelweiss');
   for (let i = 0; i < 3; i++) {

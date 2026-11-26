@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { restartLevel } from './game.ts';
+import { createGame, restartLevel } from './game.ts';
+import { parseLevel } from './level.ts';
 import { createPlayer } from './player.ts';
 import { gameFrom, placePlayer, runGame } from './test-helpers.ts';
 import { Cell } from './types.ts';
@@ -43,7 +44,7 @@ describe('Leben, Tod, Ziel', () => {
   it('Gipfelkreuz unten: 1 Bonus-Kristall, Zeit steht', () => {
     const s = gameFrom(['............', '.P...Z......', '############']);
     const ev = runGame(s, [[{ right: true }, 60]]);
-    expect(ev).toContainEqual({ type: 'goal', bonusCrystals: 1, extraLife: false });
+    expect(ev).toContainEqual({ type: 'goal', bonusCrystals: 1, extraLife: false, exit: 'normal' });
     const t = s.session.time;
     runGame(s, [[{}, 30]]);
     expect(s.session.time).toBe(t);
@@ -62,7 +63,7 @@ describe('Leben, Tod, Ziel', () => {
     s.player.body.x = 5 * 16 - 8;
     s.player.body.y = 22;
     s.player.grounded = false; // Füße bei 36, Zellunterkante 112 → h = 4,75
-    expect(runGame(s, [[{ right: true }, 4]])).toContainEqual({ type: 'goal', bonusCrystals: 0, extraLife: true });
+    expect(runGame(s, [[{ right: true }, 4]])).toContainEqual({ type: 'goal', bonusCrystals: 0, extraLife: true, exit: 'normal' });
   });
   it('Ziel oben: Kraxel landet, jubelt, Zeit steht', () => {
     const s = gameFrom([...Array(6).fill('............'), '.P...Z......', '############']);
@@ -126,5 +127,25 @@ describe('Stampfen auf Felsblöcke und Kisten', () => {
     const ev = runGame(s, [[{}, 2], [{ jump: true }, 12], [{ down: true }, 1], [{}, 30]]);
     expect(ev.filter((e) => e.type === 'crateOpen')).toHaveLength(1);
     expect([s.grid.get(3, 3), s.grid.get(4, 3)].filter((c) => c === Cell.CrateUsed)).toHaveLength(1);
+  });
+
+  it('geheimes Gipfelkreuz meldet exit secret, normales exit normal', () => {
+    const g = gameFrom(['............', '.P...G......', '############']);
+    expect(runGame(g, [[{ right: true }, 60]])).toContainEqual({ type: 'goal', bonusCrystals: 1, extraLife: false, exit: 'secret' });
+    expect(g.phase).toBe('goal');
+    const z = gameFrom(['............', '.P...Z......', '############']);
+    expect(runGame(z, [[{ right: true }, 60]])).toContainEqual({ type: 'goal', bonusCrystals: 1, extraLife: false, exit: 'normal' });
+  });
+  it('Z und G im selben Level: das zuerst berührte beendet das Level', () => {
+    const g = gameFrom(['..............', '.P..G....Z....', '##############']);
+    const ev = runGame(g, [[{ right: true }, 120]]);
+    expect(ev.filter((e) => e.type === 'goal')).toEqual([{ type: 'goal', bonusCrystals: 1, extraLife: false, exit: 'secret' }]);
+  });
+  it('Start mit Helm: Neustart des Levels gibt den Starthelm zurück, Tod nimmt ihn sonst', () => {
+    const l = parseLevel('t', 'name: t\nworld: 1\n---\n..........\nP.........\n##########');
+    const s = createGame(l, undefined, { helm: true });
+    s.player.helm = false;
+    restartLevel(s);
+    expect(s.player.helm).toBe(true);
   });
 });

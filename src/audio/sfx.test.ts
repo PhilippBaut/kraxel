@@ -92,7 +92,7 @@ describe('soundsForEvents', () => {
     expect(ev({ type: 'stomp', x: 0, y: 0 }, { type: 'enemyDefeated', x: 0, y: 0 }, { type: 'enemyDefeated', x: 1, y: 0 })).toEqual(['stomp']);
   });
   it('mit goal entfällt extraLife', () => {
-    expect(ev({ type: 'extraLife' }, { type: 'goal', bonusCrystals: 0, extraLife: true })).toEqual(['goal']);
+    expect(ev({ type: 'extraLife' }, { type: 'goal', bonusCrystals: 0, extraLife: true, exit: 'normal' })).toEqual(['goal']);
   });
   it('ohne goal bleibt extraLife; unbekannte Events schweigen', () => {
     expect(ev({ type: 'extraLife' }, { type: 'land' })).toEqual(['extraLife']);

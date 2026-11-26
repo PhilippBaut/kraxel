@@ -51,8 +51,8 @@ export class GalleryScene extends Phaser.Scene {
   /** Übrige Sprites im Fluss, das hohe Gipfelkreuz rechts daneben. */
   private spriteFlow(top: number): number {
     const kraxel = new Set<string>([...KRAXEL_FRAMES, ...KRAXEL_FRAMES.map(helmName)]);
-    const names = Object.keys(buildSprites()).filter((n) => !kraxel.has(n) && n !== 'cross');
-    const right = W - 56;
+    const names = Object.keys(buildSprites()).filter((n) => !kraxel.has(n) && n !== 'cross' && n !== 'crossGold');
+    const right = W - 96;
     let x = PAD, y = top, rowH = 0;
     for (const n of names) {
       const img = this.image(0, 0, n, 2);
@@ -66,6 +66,8 @@ export class GalleryScene extends Phaser.Scene {
     }
     const cross = this.image(right + 12, top, 'cross', 2);
     new PixelText(this, right + 10, top + cross.displayHeight + 3, 'CROSS', 'dark');
+    const gold = this.image(right + 52, top, 'crossGold', 2);
+    new PixelText(this, right + 50, top + gold.displayHeight + 3, 'GOLD', 'dark');
     return Math.max(y + rowH, top + cross.displayHeight + 3 + GLYPH_H);
   }
 

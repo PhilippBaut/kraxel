@@ -56,7 +56,7 @@ export class WorldView {
   private enemies: Image[] = [];
   /** Steinmännchen nach Index; Kreuz am Ziel. */
   private cairns: Image[] = [];
-  private cross: Image | null = null;
+  private crosses: Image[] = [];
   private pops: Pop[] = [];
   private sparkles: Sparkle[] = [];
   private debris: Debris[] = [];
@@ -88,14 +88,15 @@ export class WorldView {
     this.debris = [];
     this.sparkles = [];
     for (const img of this.cairns) img.destroy();
-    this.cross?.destroy();
-    this.cross = null;
+    for (const img of this.crosses) img.destroy();
+    this.crosses = [];
     this.cairns = [];
     for (const sp of s.level.spawns) {
       if (sp.kind === 'checkpoint') {
         this.cairns[sp.index] = this.scene.add.image(sp.cx * TILE, sp.cy * TILE, 'cairn').setOrigin(0).setDepth(DEPTH.marker);
-      } else if (sp.kind === 'goal') {
-        this.cross = this.scene.add.image(sp.cx * TILE, (sp.cy + 1) * TILE, 'cross').setOrigin(0, 1).setDepth(DEPTH.marker);
+      } else if (sp.kind === 'goal' || sp.kind === 'secretGoal') {
+        const key = sp.kind === 'secretGoal' ? 'crossGold' : 'cross';
+        this.crosses.push(this.scene.add.image(sp.cx * TILE, (sp.cy + 1) * TILE, key).setOrigin(0, 1).setDepth(DEPTH.marker));
       }
     }
     const g = s.grid;

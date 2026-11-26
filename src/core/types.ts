@@ -1,4 +1,5 @@
 // Gemeinsame Typen der Spiellogik. Kein Phaser, kein DOM.
+import type { ExitKind } from './save.ts';
 
 export const Cell = { Empty: 0, Ground: 1, Rock: 2, Crate: 3, CrateUsed: 4, HiddenCrate: 5 } as const;
 export type Cell = (typeof Cell)[keyof typeof Cell];
@@ -24,4 +25,4 @@ export type GameEvent =
   | { type: 'stomp'; x: number; y: number } | { type: 'enemyDefeated'; x: number; y: number }
   | { type: 'hurt' } | { type: 'death' } | { type: 'respawn' } | { type: 'gameOver' }
   | { type: 'checkpoint'; index: number } | { type: 'edelweiss'; index: number }
-  | { type: 'extraLife' } | { type: 'goal'; bonusCrystals: number; extraLife: boolean };
+  | { type: 'extraLife' } | { type: 'goal'; bonusCrystals: number; extraLife: boolean; exit: ExitKind };
