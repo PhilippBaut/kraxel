@@ -100,8 +100,10 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
     }
   }
 
-  // Stampfen: nur frei in der Luft. Der Wechsel passiert vor der Bewegung.
-  if (p.mode === 'normal' && !p.grounded && input.downPressed && !isOnGround(b, grid)) {
+  // Stampfen: nur frei in der Luft und nur, wenn „unten“ ohne Seite neu gedrückt wird (Flanke von down, dabei weder links noch rechts).
+  // Schräg unten (Daumen rutscht am Steuerkreuz) stampft nie; wer unten hält und die Seite loslässt, muss neu drücken.
+  // Der Wechsel passiert vor der Bewegung.
+  if (p.mode === 'normal' && !p.grounded && input.downPressed && !input.left && !input.right && !isOnGround(b, grid)) {
     startPound(p, t, events);
     return [];
   }

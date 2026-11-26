@@ -52,6 +52,22 @@ describe('Stampfen', () => {
     expect(r2.events.some((e) => e.type === 'poundLand')).toBe(true);
     expect(r2.poundCells).toContainEqual([3, 10]);
   });
+  it('schräg nach unten (unten + rechts) in der Luft stampft nicht', () => {
+    const p = createPlayer(3, 9); runPlayer(p, FLAT, [[{ jump: true }, 20]]);
+    const r = runPlayer(p, FLAT, [[{ down: true, right: true }, 3], [{ right: true }, 10]]);
+    expect(r.events).not.toContainEqual({ type: 'pound' });
+    expect(p.mode).not.toBe('poundHang');
+  });
+  it('reines Unten in der Luft stampft, auch wenn vorher eine Seite gehalten wurde', () => {
+    const p = createPlayer(3, 9); runPlayer(p, FLAT, [[{ jump: true }, 20]]);
+    const r = runPlayer(p, FLAT, [[{ right: true }, 2], [{ down: true }, 1]]);
+    expect(r.events).toContainEqual({ type: 'pound' });
+  });
+  it('unten halten und die Seite loslassen löst kein spätes Stampfen aus', () => {
+    const p = createPlayer(3, 9); runPlayer(p, FLAT, [[{ jump: true }, 20]]);
+    const r = runPlayer(p, FLAT, [[{ down: true, right: true }, 2], [{ down: true }, 4]]);
+    expect(r.events).not.toContainEqual({ type: 'pound' });
+  });
   it('kein Stampfen am Boden', () => {
     const p = createPlayer(3, 9);
     expect(runPlayer(p, FLAT, [[{ down: true }, 5]]).events).not.toContainEqual({ type: 'pound' });

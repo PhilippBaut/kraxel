@@ -12,6 +12,7 @@ import { collectPickups, createPickup, stepPickups } from './pickups.ts';
 import type { PickupState } from './pickups.ts';
 import { jumpGravity } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
+import { Cell } from './types.ts';
 import type { CrateContent, GameEvent, InputFrame } from './types.ts';
 
 export type Phase = 'playing' | 'dying' | 'goal' | 'gameOver';
@@ -155,6 +156,7 @@ function touchGoal(s: GameState): GameEvent[] {
   s.phase = 'goal';
   s.phaseTimer = GOAL_TIME;
   s.player.mode = 'goal';
+  s.player.invuln = 0; // stepGoal zählt invuln nicht herunter, die Schonzeit-Blinkerei würde Kraxel unsichtbar lassen
   s.player.anim = 'cheer';
   s.player.body.vx = 0;
   s.player.body.vy = 0;
@@ -188,6 +190,24 @@ function stepDying(s: GameState, t: Tuning, dt: number): GameEvent[] {
   return [{ type: 'respawn' }];
 }
 
+/** Stampf-Landung: jeder Felsblock unter dem Körper bricht, von den Kisten (und allem anderen) nur die Hauptzelle.
+ *  Bleibt danach nichts Festes unter den Füßen, fällt Kraxel weiter statt in der Luft zu stehen. */
+function hitPoundCells(s: GameState, cells: Array<[number, number]>): GameEvent[] {
+  if (cells.length === 0) return [];
+  const events: GameEvent[] = [];
+  const rocks = cells.filter(([cx, cy]) => s.grid.get(cx, cy) === Cell.Rock);
+  const others = cells.filter(([cx, cy]) => s.grid.get(cx, cy) !== Cell.Rock);
+  for (const [cx, cy] of rocks) events.push(...hitCell(s, cx, cy, 'above'));
+  const main = primaryCell(s.player.body, others);
+  if (main) events.push(...hitCell(s, main[0], main[1], 'above'));
+  const p = s.player;
+  if (p.mode === 'poundRecover' && !isOnGround(p.body, s.grid)) {
+    p.mode = 'pound';
+    p.grounded = false;
+  }
+  return events;
+}
+
 export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewWindow, dt: number = STEP): GameEvent[] {
   if (s.phase === 'dying') return stepDying(s, t, dt);
   if (s.phase === 'goal') {
@@ -200,8 +220,7 @@ export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewW
   const events = [...r.events];
   const head = primaryCell(s.player.body, r.headCells);
   if (head) events.push(...hitCell(s, head[0], head[1], 'below'));
-  const pound = primaryCell(s.player.body, r.poundCells);
-  if (pound) events.push(...hitCell(s, pound[0], pound[1], 'above'));
+  events.push(...hitPoundCells(s, r.poundCells));
   stepBlocks(s, dt);
   stepPickups(s.pickups, s.grid, dt);
   stepEnemies(s.enemies, s.grid, view, dt);

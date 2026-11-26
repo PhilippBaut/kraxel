@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { restartLevel } from './game.ts';
 import { createPlayer } from './player.ts';
-import { gameFrom, runGame } from './test-helpers.ts';
+import { gameFrom, placePlayer, runGame } from './test-helpers.ts';
+import { Cell } from './types.ts';
 
 const PIT = ['............', '.P....S.....', '####..####..', '............'];
 
@@ -47,6 +48,15 @@ describe('Leben, Tod, Ziel', () => {
     runGame(s, [[{}, 30]]);
     expect(s.session.time).toBe(t);
   });
+  it('Gipfelkreuz berührt mit Schonzeit: Kraxel blinkt im Jubel nicht unsichtbar', () => {
+    const s = gameFrom(['............', '.P...Z......', '############']);
+    s.player.invuln = 1.5;
+    runGame(s, [[{ right: true }, 60]]);
+    expect(s.phase).toBe('goal');
+    expect(s.player.invuln).toBe(0);
+    runGame(s, [[{}, 20]]);
+    expect(s.player.invuln).toBe(0);
+  });
   it('Gipfelkreuz ganz oben: Extraleben', () => {
     const s = gameFrom([...Array(6).fill('............'), '.P...Z......', '############']);
     s.player.body.x = 5 * 16 - 8;
@@ -75,5 +85,46 @@ describe('Leben, Tod, Ziel', () => {
     s.player.body.y = 999;
     const ev = runGame(s, [[{}, 200]]);
     expect(ev.filter((e) => e.type === 'death')).toHaveLength(1);
+  });
+});
+
+describe('Stampfen auf Felsblöcke und Kisten', () => {
+  const POUND = [[{}, 2], [{ jump: true }, 12], [{ down: true }, 1], [{}, 60]] as Parameters<typeof runGame>[1];
+  const ROOF = ['............', '............', '............', '...BB.......', '............', '............', '############'];
+
+  it('Stampfen über zwei Felsblöcken bricht beide, Kraxel fällt durch', () => {
+    const s = gameFrom(ROOF);
+    placePlayer(s, 3, 2);
+    s.player.body.x = 4 * 16 - 5; // je 5 px über Zelle 3 und 4
+    const ev = runGame(s, POUND);
+    expect(ev.filter((e) => e.type === 'rockBreak')).toHaveLength(2);
+    expect(s.grid.get(3, 3)).toBe(Cell.Empty);
+    expect(s.grid.get(4, 3)).toBe(Cell.Empty);
+    expect(s.player.body.y + s.player.body.h).toBe(6 * 16); // unten am Boden, nicht oben auf dem Dach
+  });
+  it('Stampfen auf einen einzelnen Felsblock mit Boden darunter: bricht, Kraxel landet am Boden', () => {
+    const s = gameFrom(ROOF.map((r) => r.replace('BB', 'B.')));
+    placePlayer(s, 3, 2);
+    const ev = runGame(s, POUND);
+    expect(ev.filter((e) => e.type === 'rockBreak')).toHaveLength(1);
+    expect(s.player.body.y + s.player.body.h).toBe(6 * 16);
+    expect(s.player.grounded).toBe(true);
+  });
+  it('Stampfen auf festen Boden landet ganz normal und lässt Kraxel stehen', () => {
+    const s = gameFrom(ROOF);
+    placePlayer(s, 8, 5);
+    const ev = runGame(s, [[{}, 2], [{ jump: true }, 12], [{ down: true }, 1], [{}, 40]]);
+    expect(ev.some((e) => e.type === 'poundLand')).toBe(true);
+    expect(ev.some((e) => e.type === 'rockBreak')).toBe(false);
+    expect(s.player.grounded).toBe(true);
+    expect(s.player.body.y + s.player.body.h).toBe(6 * 16);
+  });
+  it('Stampfen über zwei Kisten öffnet genau eine', () => {
+    const s = gameFrom(ROOF.map((r) => r.replace('BB', 'KK')));
+    placePlayer(s, 3, 2);
+    s.player.body.x = 4 * 16 - 5;
+    const ev = runGame(s, [[{}, 2], [{ jump: true }, 12], [{ down: true }, 1], [{}, 30]]);
+    expect(ev.filter((e) => e.type === 'crateOpen')).toHaveLength(1);
+    expect([s.grid.get(3, 3), s.grid.get(4, 3)].filter((c) => c === Cell.CrateUsed)).toHaveLength(1);
   });
 });
