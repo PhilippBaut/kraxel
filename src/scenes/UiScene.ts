@@ -71,6 +71,7 @@ export class UiScene extends Phaser.Scene {
       name: new OutlinedText(this, 0, 0, ''),
     };
     this.mode = this.registry.get('uiMode') === 'map' ? 'map' : 'play';
+    this.mapInfo = null;
     this.applyLayout(this.registry.get('layout') as Layout);
     const offTap = this.controls.onTap((x, y) => this.onTap(x, y));
     const onEditing = (v: boolean): void => { this.editing = v; this.update(); };

@@ -1,25 +1,27 @@
 // Die Weltkarte: Kraxel läuft auf Wegen zwischen den Punkten (Steuerkreuz oder Tippen), Sprung oder zweiter Tipp betritt das Level.
 // Die Info zum Punkt (Name, Bestzeit, Edelweiß) zeichnet UiScene aus der Registry (`mapInfo`), damit sie über dem Steuerfeld bzw. in der Leiste liegt.
 import Phaser from 'phaser';
+import { TILE } from '../config.ts';
 import { formatTime } from '../core/format.ts';
+import { DirEdges } from '../core/dir-edges.ts';
 import { newRun } from '../core/run.ts';
 import { loadSave, safeStorage, withLastNode, writeSave, type SaveData } from '../core/save.ts';
-import { enterable, nodeAtPoint, nodeOpen, openedBetween, pathOpen, pickDirection, route, withoutOpened, type Dir, type MapNode, type MapPath } from '../core/worldmap.ts';
-import { helmName } from '../gfx/sprites.ts';
+import { enterable, nodeAtPoint, nodeById, nodeOpen, pathOpen, pickDirection, route, withoutOpened, type MapNode, type MapPath } from '../core/worldmap.ts';
+import { helmName, type SpriteName } from '../gfx/sprites.ts';
 import type { Controls } from '../input/controls.ts';
 import { zoneAt } from '../input/touch.ts';
 import { WORLD1 } from '../maps/world1.ts';
 import { TEXT } from '../ui-text.ts';
 import type { Layout } from '../view/layout.ts';
 
-const TILE = 16;
 const MAP_W = WORLD1.width * TILE, MAP_H = WORLD1.height * TILE;
 /** Gehgeschwindigkeit in Kacheln pro Sekunde. */
 const WALK_SPEED = 5;
 /** Ein neu aufgegangener Weg zeichnet sich in dieser Zeit (s) ein. */
 const REVEAL_SECONDS = 0.6;
-/** Trefferradius für Tipps in CSS-Pixeln (44 pt Durchmesser). */
+/** Trefferradius für Tipps in CSS-Pixeln (44 pt Durchmesser) und mindestens in Spielpixeln (Punkte liegen ≥ 48 px auseinander, die Radien überlappen nicht). */
 const TAP_RADIUS_CSS = 22;
+const TAP_RADIUS_MIN = 24;
 /** Bildwechsel der Laufbilder (s). */
 const WALK_FRAME_TIME = 0.12;
 /** Kraxel steht mit den Füßen etwas unter der Punktmitte. */
@@ -57,7 +59,7 @@ export class MapScene extends Phaser.Scene {
   private pausing = false;
   /** Kurz nach dem Fortsetzen gesperrt: derselbe Tipp, der WEITER drückt, darf Kraxel nicht auch bewegen. */
   private tapLock = false;
-  private prevHeld: Record<Dir, boolean> = { left: false, right: false, up: false, down: false };
+  private readonly dirs = new DirEdges();
   private faceLeft = false;
 
   private root!: Phaser.GameObjects.Container;
@@ -65,6 +67,8 @@ export class MapScene extends Phaser.Scene {
   private pathImages = new Map<MapPath, Phaser.GameObjects.Image[]>();
   private nodeImages = new Map<string, { img: Phaser.GameObjects.Image; mark: Phaser.GameObjects.Image | null }>();
   private figure!: Phaser.GameObjects.Image;
+  /** Kleines Kreuz über Kraxels Kopf, wenn er auf einem geschafften Level steht (er verdeckt ja das Punktbild). */
+  private atMark!: Phaser.GameObjects.Image;
   /** Linke obere Ecke der Karte im Spielbild (relativ zur Kamera). */
   private origin = { x: 0, y: 0 };
 
@@ -90,7 +94,6 @@ export class MapScene extends Phaser.Scene {
     this.leaving = false;
     this.pausing = false;
     this.faceLeft = false;
-    this.prevHeld = { left: false, right: false, up: false, down: false };
 
     const wanted = this.pending.arriveAt ?? this.save.lastNode;
     const known = wanted !== null && wanted !== undefined && this.map.nodes.some((n) => n.id === wanted);
@@ -101,14 +104,15 @@ export class MapScene extends Phaser.Scene {
     this.root = this.add.container(0, 0);
     this.buildMap();
     this.figure = this.add.image(0, 0, 'kraxel').setOrigin(0.5, 1);
-    this.root.add(this.figure);
+    this.atMark = this.add.image(0, 0, 'mapMark').setOrigin(0.5, 1).setVisible(false);
+    this.root.add([this.figure, this.atMark]);
     this.placeFigure();
     this.refresh();
     if (this.pending.arriveAt !== undefined) this.rememberNode(this.at);
     this.publishInfo();
 
     this.applyLayout(this.registry.get('layout') as Layout);
-    this.controls.sample(); // die Taste oder der Finger, die hierher geführt haben, zählen nicht
+    this.dirs.seed(this.controls.sample()); // Taste oder Finger, die hierher geführt haben (auch eine gehaltene Richtung), zählen nicht
     const offTap = this.controls.onTap((x, y) => this.onTap(x, y));
     const offPause = this.controls.onPause(() => this.requestPause());
     this.game.events.on('layout', this.applyLayout, this);
@@ -186,22 +190,26 @@ export class MapScene extends Phaser.Scene {
       if (open) img.clearTint(); else img.setTint(0x8a8aa0);
       mark?.setVisible(open && done);
     }
+    if (n.kind === 'teaser') { if (open) img.clearTint(); else img.setTint(0x8a8aa0); }
   }
 
-  private nodeById(id: string): MapNode {
-    return this.map.nodes.find((n) => n.id === id)!;
+  private node(id: string): MapNode {
+    return nodeById(this.map, id)!;
   }
 
   // ------------------------------------------------------------ Kraxel
 
-  private figureTexture(frame: string): string {
+  private figureTexture(frame: SpriteName): string {
     const run = this.registry.get('run') as { helm: boolean } | undefined;
-    return run?.helm ? helmName(frame as 'kraxel') : frame;
+    return run?.helm ? helmName(frame) : frame;
   }
 
   private placeFigure(): void {
-    const [x, y] = nodeCenter(this.nodeById(this.at));
+    const [x, y] = nodeCenter(this.node(this.at));
     this.figure.setPosition(x, y + FIGURE_DY).setTexture(this.figureTexture('kraxel')).setFlipX(this.faceLeft);
+    const n = this.node(this.at);
+    const done = n.kind === 'level' && this.shown.levels[n.levelId ?? '']?.completed === true;
+    this.atMark.setVisible(done).setPosition(x, this.figure.y - this.figure.height - 1);
   }
 
   /** Zellen der Teilstrecke von `a` nach `b` (in Laufrichtung). */
@@ -224,6 +232,7 @@ export class MapScene extends Phaser.Scene {
     }
     if (cells.length < 2) return;
     this.walk = { cells, stops, pos: 0 };
+    this.atMark.setVisible(false);
   }
 
   private onArrive(id: string): void {
@@ -238,7 +247,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   private publishInfo(): void {
-    const n = this.nodeById(this.at);
+    const n = this.node(this.at);
     const rec = this.save.levels[n.levelId ?? ''];
     const hasLevel = n.kind === 'level' || n.kind === 'fortress';
     const info: MapInfo = {
@@ -258,11 +267,7 @@ export class MapScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const dt = Math.min(delta, 100) / 1000;
     const f = this.controls.sample();
-    const edge: Record<Dir, boolean> = {
-      left: f.left && !this.prevHeld.left, right: f.right && !this.prevHeld.right,
-      up: f.up && !this.prevHeld.up, down: f.down && !this.prevHeld.down,
-    };
-    this.prevHeld = { left: f.left, right: f.right, up: f.up, down: f.down };
+    const edges = this.dirs.step(f);
 
     if (this.reveals.length > 0) {
       this.stepReveal(dt);
@@ -273,10 +278,9 @@ export class MapScene extends Phaser.Scene {
       return;
     }
     if (this.leaving) return;
-    for (const d of ['left', 'right', 'up', 'down'] as const) {
-      if (!edge[d]) continue;
+    for (const d of edges) {
       const pick = pickDirection(this.map, this.at, d, this.save);
-      if (pick) { this.startWalk([this.at, pick.to]); break; }
+      if (pick) { this.startWalk([this.at, pick.to]); return; } // Richtung und Sprung im selben Bild: nur gehen
     }
     if (f.jumpPressed) this.tryEnter();
   }
@@ -326,7 +330,7 @@ export class MapScene extends Phaser.Scene {
     if (x < v.x || x >= v.x + v.w || y < v.y || y >= v.y + v.h) return; // Steuerfeld
     if (l.orientation === 'landscape' && (y < l.hud.y + l.hud.h || zoneAt(x, y, l, false) !== null)) return;
     const mx = x - v.x - this.origin.x, my = y - v.y - this.origin.y;
-    const id = nodeAtPoint(this.map, mx, my, TAP_RADIUS_CSS / l.scale);
+    const id = nodeAtPoint(this.map, mx, my, Math.max(TAP_RADIUS_CSS / l.scale, TAP_RADIUS_MIN));
     if (id === null) return;
     if (id === this.at) { this.tryEnter(); return; }
     const r = route(this.map, this.at, id, this.save);
@@ -334,11 +338,11 @@ export class MapScene extends Phaser.Scene {
   }
 
   private tryEnter(): void {
-    const n = this.nodeById(this.at);
+    const n = this.node(this.at);
     if (n.levelId !== null && enterable(this.map, n.id, this.save)) this.enterLevel(n.levelId);
   }
 
-  /** Level betreten. Task 5 verdrahtet die Rückkehr; PlayScene ignoriert `fromMap` bis dahin. */
+  /** Level betreten; PlayScene bringt Kraxel danach über `arriveAt` zurück auf diesen Punkt. */
   enterLevel(levelId: string): void {
     if (this.leaving) return;
     this.leaving = true;
@@ -357,8 +361,7 @@ export class MapScene extends Phaser.Scene {
     this.pausing = false;
     this.tapLock = true;
     setTimeout(() => { this.tapLock = false; }, 0); // gilt bis zum Ende des laufenden Ereignisses
-    const f = this.controls.sample(); // schon gehaltene Richtungen sind keine neue Flanke
-    this.prevHeld = { left: f.left, right: f.right, up: f.up, down: f.down };
+    this.dirs.seed(this.controls.sample()); // schon gehaltene Richtungen sind keine neue Flanke
   }
 
   /** TITEL im Kartenmenü: Info-Leiste und Menü beenden, zum Titel. */

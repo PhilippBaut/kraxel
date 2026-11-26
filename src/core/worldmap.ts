@@ -1,4 +1,5 @@
 // Weltkarte: Punkte, Wege, Freischalten, Wegwahl, Route und Tipp-Auswahl. Kein Phaser, kein DOM.
+import { TILE } from '../config.ts';
 import type { ExitKind, SaveData } from './save.ts';
 
 export type NodeKind = 'hut' | 'level' | 'fortress' | 'teaser';
@@ -9,13 +10,11 @@ export interface MapPath { from: string; to: string; via: ExitKind | 'always'; c
 export interface WorldMap { world: number; width: number; height: number; tiles: readonly string[]; nodes: readonly MapNode[]; paths: readonly MapPath[]; start: string }
 
 type Cell = readonly [number, number];
-/** Kantenlänge einer Kachel in Kartenpixeln. */
-const TILE = 16;
 /** Mindestabstand zwischen Punkten in Kacheln (Chebyshev: max(|dx|, |dy|)). */
 const MIN_NODE_GAP = 3;
 const DIRS: Record<Dir, Cell> = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
 
-const nodeById = (m: WorldMap, id: string): MapNode | undefined => m.nodes.find((n) => n.id === id);
+export const nodeById = (m: WorldMap, id: string): MapNode | undefined => m.nodes.find((n) => n.id === id);
 const cellKey = (c: Cell): string => `${c[0]},${c[1]}`;
 
 /**
