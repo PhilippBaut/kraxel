@@ -27,19 +27,32 @@ const DEBRIS_START: readonly (readonly [number, number, number, number])[] = [
 /** Käfer: alle 0,15 s wird gespiegelt, das gibt zwei Laufbilder. */
 const BEETLE_STEP_TIME = 0.15;
 const SHAKE_MS = 120, SHAKE_PX = 2;
+/** Enzian: Kraxel flackert golden (Takt in s), glitzert alle SPARK_EVERY s und blinkt in den letzten WARN s heller/normal. */
+const ENZIAN_FLICKER = 0.07, ENZIAN_WARN = 2, SPARK_EVERY = 0.06;
+const GOLD_A = 0xffe58a, GOLD_B = 0xfffbd8, GOLD_SPARK = 0xffe680;
+/** Kiesel zerplatzt zu einem kleinen Kreuz (Armlänge 2). */
+const POP_SPARK = 2;
 /** Ausschnitt des Kristalls im 16×16-Sprite (wie `drawCrystal`: 8×9 ab 4,3). */
 const CRYSTAL_FRAME = 'spin', CRYSTAL_X = 4, CRYSTAL_Y = 3, CRYSTAL_W = 8, CRYSTAL_H = 9;
 
 interface Block { img: Image; bumpAt: number }
 interface Pop { img: Image; x: number; y: number; start: number }
-interface Sparkle { x: number; y: number; start: number }
+/** `max`: größte Armlänge des Kreuzes in px, `color`: Farbe (weiß beim Kristall, golden beim Enzian). */
+interface Sparkle { x: number; y: number; start: number; max?: number; color?: number }
 interface Debris { img: Image; x: number; y: number; vx: number; vy: number; start: number }
 
 function blockTexture(cell: Cell): string | null {
   if (cell === Cell.Rock) return 'stone';
   if (cell === Cell.Crate) return 'crate';
   if (cell === Cell.CrateUsed) return 'crateUsed';
+  if (cell === Cell.LeafPad) return 'leafPad';
   return null;
+}
+
+/** Edelweiß, Helm, Schleuder oder Enzian. */
+function pickupTexture(p: PickupState): string {
+  if (p.kind === 'edelweiss') return 'edel';
+  return p.item === 'sling' ? 'sling' : p.item === 'enzian' ? 'enzian' : 'helm';
 }
 
 /** Breite des drehenden Kristalls: gerade, mindestens 2 px (wie `drawCrystal`). */
@@ -53,6 +66,10 @@ export class WorldView {
   private readonly fx: Phaser.GameObjects.Graphics;
   private readonly blocks = new Map<number, Block>();
   private pickups: Image[] = [];
+  private pebbles: Image[] = [];
+  /** Zähler für die Glitzerpunkte um Kraxel (Enzian) und Zeit des letzten. */
+  private sparkCount = 0;
+  private sparkAt = -Infinity;
   private enemies: Image[] = [];
   /** Steinmännchen nach Index; Kreuz am Ziel. */
   private cairns: Image[] = [];
@@ -82,6 +99,8 @@ export class WorldView {
     this.pickups = [];
     for (const img of this.enemies) img.destroy();
     this.enemies = [];
+    for (const img of this.pebbles) img.destroy();
+    this.pebbles = [];
     for (const p of this.pops) p.img.destroy();
     for (const d of this.debris) d.img.destroy();
     this.pops = [];
@@ -120,6 +139,8 @@ export class WorldView {
           else this.sparkles.push({ x: Math.round(e.x), y: Math.round(e.y), start: now });
           break;
         case 'rockBreak': this.breakRock(e.cx, e.cy, now); break;
+        case 'bounce': this.bump(e.cx, e.cy, now); break;
+        case 'pebblePop': this.sparkles.push({ x: Math.round(e.x), y: Math.round(e.y), start: now, max: POP_SPARK }); break;
         case 'poundLand': {
           const cam = this.scene.cameras.main;
           cam.shake(SHAKE_MS, new Phaser.Math.Vector2(0, SHAKE_PX / cam.height));
@@ -134,23 +155,51 @@ export class WorldView {
   sync(s: GameState, time: number): void {
     const dt = this.lastTime < 0 ? 0 : Math.min(0.05, Math.max(0, time - this.lastTime));
     this.lastTime = time;
-    this.syncPlayer(s);
+    this.syncPlayer(s, time);
     this.cairns.forEach((img, i) => img.setTexture(i <= s.checkpoint ? 'cairnFlag' : 'cairn'));
     this.syncBlocks(time);
     this.syncPickups(s.pickups, time);
     this.syncEnemies(s.enemies, time);
+    this.syncPebbles(s.pebbles);
     this.syncPops(time);
     this.syncDebris(time, dt);
     this.drawSparkles(time);
   }
 
-  private syncPlayer(s: GameState): void {
+  private syncPlayer(s: GameState, time: number): void {
     const p = s.player, b = p.body;
+    this.syncEnzian(p, time);
     this.player
       .setTexture(playerFrame(p, p.animTime))
       .setFlipX(playerFlipX(p))
       .setPosition(Math.round(b.x + b.w / 2), Math.round(b.y + b.h))
       .setVisible(p.mode === 'dead' || p.invuln <= 0 || Math.floor(p.invuln * 15) % 2 === 0);
+  }
+
+  /** Enzian: goldenes Flackern und Glitzerpunkte um Kraxel; in den letzten Sekunden wechselt er zwischen golden und normal. */
+  private syncEnzian(p: GameState['player'], now: number): void {
+    if (p.enzian <= 0) {
+      this.player.clearTint();
+      return;
+    }
+    const warn = p.enzian < ENZIAN_WARN && Math.floor(p.enzian * 8) % 2 === 0;
+    if (warn) this.player.clearTint();
+    else this.player.setTint(Math.floor(now / ENZIAN_FLICKER) % 2 === 0 ? GOLD_A : GOLD_B);
+    if (now - this.sparkAt < SPARK_EVERY) return;
+    this.sparkAt = now;
+    const b = p.body, n = this.sparkCount++;
+    // Verteilung ohne Zufall: Folge aus Primzahl-Schritten, damit die Punkte rund um Kraxel wandern.
+    const fx = ((n * 7) % 11) / 10, fy = ((n * 5) % 13) / 12;
+    this.sparkles.push({ x: Math.round(b.x + fx * b.w), y: Math.round(b.y + fy * b.h), start: now, max: 3, color: GOLD_SPARK });
+  }
+
+  /** Kiesel als 4×4-Bilder an der Position ihres Körpers. */
+  private syncPebbles(list: GameState['pebbles']): void {
+    for (let i = 0; i < list.length; i++) {
+      const img = (this.pebbles[i] ??= this.scene.add.image(0, 0, 'pebble').setOrigin(0).setDepth(DEPTH.fx));
+      img.setVisible(true).setPosition(Math.round(list[i]!.body.x), Math.round(list[i]!.body.y));
+    }
+    for (let i = list.length; i < this.pebbles.length; i++) this.pebbles[i]!.setVisible(false);
   }
 
   private addBlock(cx: number, cy: number): void {
@@ -212,7 +261,7 @@ export class WorldView {
 
   private makePickup(p: PickupState): Image {
     if (p.kind === 'crystal') return this.crystalImage(DEPTH.pickup);
-    const img = this.scene.add.image(0, 0, p.kind === 'edelweiss' ? 'edel' : 'helm').setDepth(DEPTH.pickup);
+    const img = this.scene.add.image(0, 0, pickupTexture(p)).setDepth(DEPTH.pickup);
     // Items tauchen hinter der Kiste auf (Blöcke liegen darüber).
     return p.kind === 'item' ? img.setOrigin(0.5, 1) : img;
   }
@@ -272,8 +321,8 @@ export class WorldView {
       const p = (time - sp.start) / SPARKLE_TIME;
       if (p >= 1) return false;
       if (p < 0) return true;
-      const r = Math.round(1 + p * 4), { x, y } = sp;
-      g.fillStyle(0xffffff, 1 - p * 0.7);
+      const r = Math.round(1 + p * ((sp.max ?? 5) - 1)), { x, y } = sp;
+      g.fillStyle(sp.color ?? 0xffffff, 1 - p * 0.7);
       g.fillRect(x, y - r, 1, r * 2 + 1);
       g.fillRect(x - r, y, r * 2 + 1, 1);
       if (p > 0.3) {

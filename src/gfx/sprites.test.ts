@@ -86,4 +86,29 @@ describe('sprites', () => {
     );
     expect([S.debris.length, S.debris[0].length]).toEqual([8, 8]);
   });
+
+  it('Kiesel, Blätterpolster und Schleuder-Symbol haben die richtige Größe', () => {
+    const dim = (n: string) => [S[n].length, S[n][0].length];
+    expect(dim('pebble')).toEqual([4, 4]); // wie PEBBLE_SIZE im Kern
+    expect(dim('leafPad')).toEqual([16, 16]);
+    expect(dim('iSling')).toEqual([7, 7]);
+    expect(dim('sling')).toEqual([16, 16]);
+    expect(dim('enzian')).toEqual([16, 16]);
+  });
+
+  it('Items sehen verschieden aus: Helm, Schleuder und Enzian', () => {
+    const t = (n: string) => text(n).join('\n');
+    expect(new Set([t('helm'), t('sling'), t('enzian')]).size).toBe(3);
+  });
+
+  it('Blätterpolster füllt die Zelle bis auf die Ecken und hat keine Bodenfarben', () => {
+    const rows = text('leafPad');
+    for (let i = 1; i < 15; i++) {
+      expect(rows[0][i], `oben ${i}`).toBe('o');
+      expect(rows[15][i], `unten ${i}`).toBe('o');
+      expect(rows[i][0], `links ${i}`).toBe('o');
+      expect(rows[i][15], `rechts ${i}`).toBe('o');
+    }
+    expect(rows.join('')).not.toMatch(/[Dd]/); // Erde gehört dem Boden
+  });
 });

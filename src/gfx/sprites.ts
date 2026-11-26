@@ -15,7 +15,8 @@ export type SpriteName =
   | KraxelFrame
   | 'crate' | 'crateUsed' | 'crystal' | 'edel' | 'helm' | 'sling' | 'glider' | 'crampon' | 'enzian'
   | 'beetle' | 'beetleFlat' | 'snail' | 'stone' | 'cloud' | 'groundTop' | 'groundFill'
-  | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'cross' | 'crossGold' | 'cairn' | 'cairnFlag' | 'debris';
+  | 'pebble' | 'leafPad'
+  | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'iSling' | 'cross' | 'crossGold' | 'cairn' | 'cairnFlag' | 'debris';
 
 export const KRAXEL_FRAMES: readonly SpriteName[] = KRAXEL_NAMES;
 
@@ -429,6 +430,30 @@ function enzian(): PixelGrid {
   return o;
 }
 
+/** Kiesel, 4×4: grauer Stein mit dunklem Rand (so groß wie der Körper im Kern). */
+const PEBBLE = ['.oo.', 'oMMo', 'oMno', '.oo.'];
+
+/**
+ * Blätterpolster: ein dickes gelbgrünes Blatt füllt die Zelle (Umrandung bis zum Rand, Ecken rund),
+ * heller Rand oben, dunklere Adern wie bei einem Seerosenblatt. Bewusst gelbgrün (T/t) statt Grasgrün,
+ * damit es sich vom Boden abhebt.
+ */
+function leafPad(): PixelGrid {
+  const g = grid(16, 16);
+  rect(g, 1, 1, 14, 14, 'T');
+  put(g, [[1, 1], [14, 1], [1, 14], [14, 14]], '.');
+  rect(g, 2, 1, 13, 2, 'l');
+  rect(g, 1, 12, 14, 14, 't');
+  put(g, [[1, 14], [14, 14]], '.');
+  rect(g, 7, 3, 8, 11, 'g'); // Mittelrippe
+  line(g, 6, 5, 2, 3, 'g'); line(g, 6, 8, 2, 6, 'g'); line(g, 9, 5, 13, 3, 'g'); line(g, 9, 8, 13, 6, 'g');
+  put(g, [[3, 9], [12, 10]], 'l');
+  const o = outline(g);
+  // Umrandung bis an die Zellenränder: oben und unten volle Reihe, Seiten ebenso
+  for (let i = 1; i < 15; i++) { o[0][i] = 'o'; o[15][i] = 'o'; o[i][0] = 'o'; o[i][15] = 'o'; }
+  return o;
+}
+
 function stone(): PixelGrid {
   const g = grid(16, 16);
   rect(g, 0, 0, 15, 15, 'o'); rect(g, 1, 1, 14, 14, 'M');
@@ -503,6 +528,7 @@ const DEBRIS = [
 
 const I_CRYSTAL = ['...o...', '..oXo..', '.oZXxo.', 'oZXXxxo', '.oXxxo.', '..oxo..', '...o...'];
 const I_EDEL = ['..o.o..', '.oVoVo.', 'oVVYVVo', '.oYYYo.', 'oVVYVVo', '.oVoVo.', '..o.o..'];
+const I_SLING = ['.o...o.', 'oAo.oAo', 'oJoooJo', '.oJJJo.', '..oJo..', '..oJo..', '...o...'];
 const I_HEAD = ['.oooooo.', 'oHHHHHHo', 'oSSSSSSo', 'oBWEBWEo', 'oBBBBBBo', '.oooooo.'];
 
 function cloud(): PixelGrid {
@@ -551,9 +577,9 @@ export function buildSprites(): Record<string, PixelGrid> {
   const sprites: Record<SpriteName, PixelGrid> = {
     ...frames, ...crates(), ...beetles(),
     crystal: strs(CRYSTAL), edel: edel(), helm: helm(), sling: sling(), glider: glider(),
-    crampon: crampon(), enzian: enzian(), snail: snail(), stone: stone(), cloud: cloud(),
+    crampon: crampon(), enzian: enzian(), pebble: strs(PEBBLE), leafPad: leafPad(), snail: snail(), stone: stone(), cloud: cloud(),
     groundTop: groundTop(), groundFill: groundFill(),
-    iCrystal: strs(I_CRYSTAL), iEdel, iEdelOff: recolor(iEdel, { V: 'w', Y: 'w' }), iHead: strs(I_HEAD),
+    iCrystal: strs(I_CRYSTAL), iEdel, iEdelOff: recolor(iEdel, { V: 'w', Y: 'w' }), iHead: strs(I_HEAD), iSling: strs(I_SLING),
     cross: crossGrid, crossGold: recolor(crossGrid, { J: 'Q', j: 'q' }), cairn: base, cairnFlag: cairnFlag(base), debris: strs(DEBRIS),
   };
   return { ...sprites, ...helmets };

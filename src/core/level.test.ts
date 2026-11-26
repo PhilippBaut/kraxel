@@ -63,4 +63,23 @@ describe('validateLevel', () => {
   it('Übungsplatz ist gültig und hat ein Ziel (für den Ergebnis-Ablauf)', () => {
     expect(validateLevel(parseLevel('uebungsplatz', LEVELS.uebungsplatz), { requireEdelweiss: false, requireGoal: true })).toEqual([]);
   });
+  it('Übungsplatz hat Schleuder- und Enzian-Kiste, drei Blätterpolster und Gegner zum Schießen', () => {
+    const lv = parseLevel('uebungsplatz', LEVELS.uebungsplatz);
+    const rows = LEVELS.uebungsplatz.split('---\n')[1].split('\n');
+    const count = (ch: string) => rows.join('').split(ch).length - 1;
+    expect(count('J')).toBe(1);
+    expect(count('E')).toBe(1);
+    expect(count('L')).toBe(3);
+    expect(lv.cells.filter((c) => c === Cell.LeafPad).length).toBe(3);
+    expect(lv.spawns.filter((s) => s.kind === 'beetle').length).toBeGreaterThanOrEqual(2);
+    expect(lv.spawns.filter((s) => s.kind === 'snail').length).toBeGreaterThanOrEqual(2);
+    expect(lv.spawns.filter((s) => s.kind === 'goal').length).toBe(1);
+  });
+  it('Übungsplatz: Schleuder- und Enzian-Kiste liegen vor dem Ziel', () => {
+    const lv = parseLevel('uebungsplatz', LEVELS.uebungsplatz);
+    const goal = lv.spawns.find((s) => s.kind === 'goal')!;
+    const items = [...lv.crates].filter(([, c]) => c.kind === 'item' && c.item !== 'helm').map(([i]) => i % lv.width);
+    expect(items.length).toBe(2);
+    for (const cx of items) expect(cx).toBeLessThan(goal.cx);
+  });
 });

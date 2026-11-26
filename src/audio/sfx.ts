@@ -3,7 +3,7 @@
 import type { GameEvent } from '../core/types.ts';
 
 export type SoundName = 'jump' | 'wallJump' | 'bump' | 'crate' | 'crystal' | 'item' | 'powerUp' | 'stomp' | 'pound' | 'rockBreak'
-  | 'hurt' | 'death' | 'checkpoint' | 'edelweiss' | 'extraLife' | 'goal' | 'select';
+  | 'hurt' | 'death' | 'checkpoint' | 'edelweiss' | 'extraLife' | 'goal' | 'select' | 'shoot' | 'sparkle' | 'bounce';
 
 /** Eine Note: Frequenz f (Hz), optional gleitend nach f2, Dauer d (s). Bei Rauschen zählt nur d. */
 export interface SoundDef {
@@ -32,12 +32,20 @@ export const SOUND_DEFS: Readonly<Record<SoundName, SoundDef>> = {
   // Eigene kurze Fanfare, rund 0,9 s.
   goal: { wave: 'square', vol: 0.42, notes: [{ f: 392, d: 0.12 }, { f: 392, d: 0.12 }, { f: 523, d: 0.12 }, { f: 392, d: 0.1 }, { f: 659, d: 0.12 }, { f: 784, d: 0.35 }] },
   select: { wave: 'square', vol: 0.35, notes: [{ f: 500, f2: 700, d: 0.05 }] },
+  // Schleuder: Gummiband-Zupfer, erst hoch, dann zurückfedernd (weich, kein Zischen).
+  shoot: { wave: 'triangle', vol: 0.8, notes: [{ f: 180, f2: 560, d: 0.05 }, { f: 560, f2: 260, d: 0.07 }] },
+  // Enzian: glitzernde Gleittöne in wechselnder Richtung, bewusst keine Tonleiter.
+  sparkle: { wave: 'sine', vol: 0.75, notes: [{ f: 1200, f2: 2400, d: 0.08 }, { f: 1900, f2: 950, d: 0.08 }, { f: 1500, f2: 3000, d: 0.14 }, { f: 2600, f2: 2000, d: 0.12 }] },
+  // Blätterpolster: federndes Boing.
+  bounce: { wave: 'triangle', vol: 0.9, notes: [{ f: 200, f2: 620, d: 0.08 }, { f: 620, f2: 360, d: 0.07 }, { f: 360, f2: 520, d: 0.08 }] },
 };
 
 export const EVENT_SOUND: Readonly<Partial<Record<GameEvent['type'], SoundName>>> = {
   jump: 'jump', wallJump: 'wallJump', bump: 'bump', crateOpen: 'crate', crystal: 'crystal', itemSpawn: 'item',
   powerUp: 'powerUp', stomp: 'stomp', enemyDefeated: 'stomp', poundLand: 'pound', rockBreak: 'rockBreak',
   hurt: 'hurt', death: 'death', checkpoint: 'checkpoint', edelweiss: 'edelweiss', extraLife: 'extraLife', goal: 'goal',
+  // Der Kiesel-Treffer läuft über `enemyDefeated` (Stomp-Klang); das Zerplatzen an der Wand bleibt still.
+  shoot: 'shoot', bounce: 'bounce', enzianStart: 'sparkle',
 };
 
 /**

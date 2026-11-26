@@ -97,4 +97,20 @@ describe('soundsForEvents', () => {
   it('ohne goal bleibt extraLife; unbekannte Events schweigen', () => {
     expect(ev({ type: 'extraLife' }, { type: 'land' })).toEqual(['extraLife']);
   });
+  it('Schleuder, Federn und Enzian haben je einen eigenen Klang', () => {
+    expect(ev({ type: 'shoot' })).toEqual(['shoot']);
+    expect(ev({ type: 'bounce', cx: 3, cy: 4 })).toEqual(['bounce']);
+    expect(ev({ type: 'enzianStart' })).toEqual(['sparkle']);
+    expect(new Set(['shoot', 'bounce', 'sparkle']).size).toBe(3);
+    for (const n of ['shoot', 'bounce', 'sparkle'] as const) expect(SOUND_DEFS[n].notes.length).toBeGreaterThan(0);
+  });
+  it('Kiesel-Treffer spielt den Stomp-Klang einmal', () => {
+    expect(ev({ type: 'enemyDefeated', x: 0, y: 0 }, { type: 'pebblePop', x: 0, y: 0 })).toEqual(['stomp']);
+  });
+  it('Schleuder-Klang und Enzian-Klang sind kurz', () => {
+    const dur = (n: 'shoot' | 'sparkle' | 'bounce') => SOUND_DEFS[n].notes.reduce((s, x) => s + x.d, 0);
+    expect(dur('shoot')).toBeLessThan(0.3);
+    expect(dur('bounce')).toBeLessThan(0.4);
+    expect(dur('sparkle')).toBeLessThan(0.6);
+  });
 });

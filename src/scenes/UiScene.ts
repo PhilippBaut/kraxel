@@ -33,6 +33,8 @@ export class UiScene extends Phaser.Scene {
   private panelEdge!: Phaser.GameObjects.Graphics;
   private dpad!: Phaser.GameObjects.Image;
   private jump!: Phaser.GameObjects.Image;
+  /** Aktionsknopf (Kiesel schießen): nur sichtbar, solange Kraxel die Schleuder trägt. */
+  private action!: Phaser.GameObjects.Image;
   /** Der Knopf-Editor blendet die Knöpfe aus, solange er offen ist. */
   private editing = false;
   /** Ohne Touch bleiben die Knöpfe verborgen, bis der erste Finger den Bildschirm berührt. */
@@ -42,6 +44,8 @@ export class UiScene extends Phaser.Scene {
     crystal: Phaser.GameObjects.Image; crystals: OutlinedText;
     head: Phaser.GameObjects.Image; lives: OutlinedText;
     edel: Phaser.GameObjects.Image[]; time: OutlinedText;
+    /** Schleuder-Symbol, nur sichtbar mit Schleuder. */
+    sling: Phaser.GameObjects.Image;
     /** Kartenmodus: Name des Punkts. */
     name: OutlinedText;
   };
@@ -62,13 +66,14 @@ export class UiScene extends Phaser.Scene {
     this.panelEdge = this.add.graphics();
     this.dpad = this.add.image(0, 0, dpadKey(BUTTON_RADII.dpad[0], NONE)).setOrigin(0);
     this.jump = this.add.image(0, 0, roundButtonKey('jump', BUTTON_RADII.jump[0], false)).setOrigin(0);
+    this.action = this.add.image(0, 0, roundButtonKey('action', BUTTON_RADII.action[0], false)).setOrigin(0).setVisible(false);
     const icon = (key: string) => this.add.image(0, 0, key).setOrigin(0);
     this.hud = {
       strip: this.add.graphics(), pause: this.add.graphics(),
       crystal: icon('iCrystal'), crystals: new OutlinedText(this, 0, 0, ''),
       head: icon('iHead'), lives: new OutlinedText(this, 0, 0, ''),
       edel: [icon('iEdelOff'), icon('iEdelOff'), icon('iEdelOff')], time: new OutlinedText(this, 0, 0, ''),
-      name: new OutlinedText(this, 0, 0, ''),
+      name: new OutlinedText(this, 0, 0, ''), sling: icon('iSling').setVisible(false),
     };
     this.mode = this.registry.get('uiMode') === 'map' ? 'map' : 'play';
     this.mapInfo = null;
@@ -81,6 +86,7 @@ export class UiScene extends Phaser.Scene {
     this.game.events.on('ui-mode', onMode);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offTap();
+      this.controls.setActionVisible(false); // die Aktionszone gehört nur zum laufenden Spiel
       this.game.events.off('layout', this.applyLayout, this);
       this.game.events.off('controls-editing', onEditing);
       this.game.events.off('ui-mode', onMode);
@@ -92,8 +98,18 @@ export class UiScene extends Phaser.Scene {
     const show = (this.touchDevice || this.controls.touchSeen) && !this.editing;
     this.dpad.setVisible(show).setTexture(dpadKey(l.dpad.r, held));
     this.jump.setVisible(show).setTexture(roundButtonKey('jump', l.jump.r, held.jump));
+    const sling = this.mode === 'play' && this.carriesSling();
+    const showAction = show && sling;
+    this.action.setVisible(showAction).setTexture(roundButtonKey('action', l.action.r, held.action));
+    this.controls.setActionVisible(showAction);
+    this.hud.sling.setVisible(sling);
     if (this.mode === 'map') this.updateMapInfo();
     else this.updateHud();
+  }
+
+  private carriesSling(): boolean {
+    const s = (this.scene.get('play') as PlayScene).state as GameState | undefined;
+    return s?.player.special === 'sling';
   }
 
   /** Info zum Kartenpunkt aus der Registry; nur bei Änderung neu setzen und anordnen. */
@@ -162,6 +178,7 @@ export class UiScene extends Phaser.Scene {
     h.lives.setPosition(x, y);
     x += textWidth('×00') + GROUP_GAP;
     h.edel.forEach((img, i) => img.setPosition(x + i * EDEL_STEP, y));
+    h.sling.setPosition(x + 2 * EDEL_STEP + ICON + GROUP_GAP, y);
     this.timeRight = portrait ? l.pause.x - 6 : r.x + r.w - 4;
     h.time.setPosition(this.timeRight - h.time.width, y);
   }
@@ -205,6 +222,7 @@ export class UiScene extends Phaser.Scene {
     const alpha = l.orientation === 'portrait' ? 1 : l.controlsAlpha;
     placeButton(this.dpad, l.dpad, alpha);
     placeButton(this.jump, l.jump, alpha);
+    placeButton(this.action, l.action, alpha);
     this.layoutHud(l);
     this.update();
   }
