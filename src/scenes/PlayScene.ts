@@ -1,5 +1,5 @@
 // Die Spielszene: Kachelkarte, Parallax-Hintergrund, Kamera und der feste 60-Hz-Takt.
-// Dazu der Ablauf drumherum: Pause, Ergebnis nach dem Ziel, Game Over zurück zum Titel.
+// Dazu der Ablauf drumherum: Titelkarte, Pause, Ergebnis nach dem Ziel, Game Over; zurück zur Karte (Entwickler-Zugang: zum Titel).
 import Phaser from 'phaser';
 import { MAX_VIEW_W, STEP, TILE, VIEW_H } from '../config.ts';
 import { soundsForEvents, type Sfx } from '../audio/sfx.ts';
@@ -7,15 +7,19 @@ import { createCamera, stepCamera, type CameraState } from '../core/camera.ts';
 import { createGame, restartLevel, stepGame, type GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import { parseLevel } from '../core/level.ts';
-import { loadSave, recordEdelweiss, recordResult, safeStorage, writeSave } from '../core/save.ts';
+import { levelTitle } from '../core/level-title.ts';
+import { newRun, runAfterGameOver, runAfterLevel, sessionFor, type RunState } from '../core/run.ts';
+import { loadSave, recordEdelweiss, recordResult, safeStorage, writeSave, type ExitKind } from '../core/save.ts';
 import { FixedStepper } from '../core/stepper.ts';
 import { DEFAULT_TUNING, isDebug, loadTuning, type Tuning } from '../core/tuning.ts';
+import { nodeForLevel, openedBetween, type MapPath } from '../core/worldmap.ts';
 import { DebugPanel } from '../debug/debug-panel.ts';
 import { GLYPH_H } from '../gfx/font.ts';
 import { OutlinedText, PixelText } from '../gfx/pixel-text.ts';
 import { groundTileIndex } from '../gfx/tiles.ts';
 import type { Controls } from '../input/controls.ts';
 import { LEVELS, START_LEVEL } from '../levels/index.ts';
+import { WORLD1 } from '../maps/world1.ts';
 import { WorldView } from '../render/world-view.ts';
 import { TEXT } from '../ui-text.ts';
 import type { Layout } from '../view/layout.ts';
@@ -34,12 +38,19 @@ const PIT_FULL_AT = PIT_ALPHA / 1.1;
 /** So lange steht GAME OVER da, dann geht es zum Titel (s). */
 const GAME_OVER_WAIT = 2;
 const GAME_OVER_SCALE = 2;
+/** So lange steht die Titelkarte beim Levelstart da (s); das Spiel steht so lange. */
+const TITLE_CARD_TIME = 1;
+const TITLE_CARD_SCALE = 2;
+/** Rand, den die Titelkarte links und rechts mindestens frei lässt (px). */
+const TITLE_CARD_MARGIN = 6;
 
 export class PlayScene extends Phaser.Scene {
   state!: GameState;
   controls!: Controls;
   private sfx!: Sfx;
   private levelId = START_LEVEL;
+  /** Das Level wurde von der Karte aus betreten (sonst Entwickler-Zugang `?level=`). */
+  private fromMap = false;
   private readonly stepper = new FixedStepper();
   private cam!: CameraState;
   private worldView!: WorldView;
@@ -51,6 +62,12 @@ export class PlayScene extends Phaser.Scene {
   private gameOverWait = 0;
   private gameOverText!: OutlinedText;
   private resultShown = false;
+  /** Restzeit der Titelkarte in s; solange > 0 steht das Spiel. */
+  private goalExit: ExitKind = 'normal';
+  private cardWait = 0;
+  private titleCard!: OutlinedText;
+  /** Wege, die das Ergebnis geöffnet hat; WEITER gibt sie der Karte mit. */
+  private opened: MapPath[] = [];
   private pauseRequested = false;
   /** Der Wechsel zum Titel ist angestoßen; die Szene endet im nächsten Bild. */
   private leaving = false;
@@ -65,12 +82,21 @@ export class PlayScene extends Phaser.Scene {
     const id = data?.levelId;
     if (id !== undefined && LEVELS[id] === undefined) console.warn(`Unbekanntes Level "${id}", starte "${START_LEVEL}".`);
     this.levelId = id !== undefined && LEVELS[id] !== undefined ? id : START_LEVEL;
+    this.fromMap = data?.fromMap === true;
   }
 
   create(): void {
     const text = LEVELS[this.levelId];
     if (text === undefined) throw new Error(`Unbekanntes Level "${this.levelId}"`);
-    this.state = createGame(parseLevel(this.levelId, text));
+    const levelData = parseLevel(this.levelId, text);
+    if (this.fromMap) {
+      if (this.registry.get('run') === undefined) this.registry.set('run', newRun());
+      const run = this.registry.get('run') as RunState;
+      // restartLevel stellt Leben, Kristalle und Helm vom Levelbeginn wieder her (startSession, startHelm).
+      this.state = createGame(levelData, sessionFor(run), { helm: run.helm });
+    } else {
+      this.state = createGame(levelData);
+    }
     this.registry.set('uiMode', 'play');
     this.game.events.emit('ui-mode', 'play');
     this.controls = this.registry.get('controls') as Controls;
@@ -86,6 +112,11 @@ export class PlayScene extends Phaser.Scene {
     this.resultShown = false;
     this.pauseRequested = false;
     this.leaving = false;
+    this.opened = [];
+    this.goalExit = 'normal';
+    this.cardWait = TITLE_CARD_TIME;
+    this.titleCard = new OutlinedText(this, 0, 0, levelTitle(this.levelId, this.state.level.name), 'ring')
+      .setScrollFactor(0).setDepth(41);
     this.gameOverText = new OutlinedText(this, 0, 0, TEXT.GAME_OVER, 'ring')
       .setScale(GAME_OVER_SCALE).setScrollFactor(0).setDepth(40).setVisible(false);
 
@@ -114,7 +145,7 @@ export class PlayScene extends Phaser.Scene {
 
   /** Pause-Knopf, Escape/P oder Tab im Hintergrund. Nur mitten im Spiel, nie über Ergebnis oder Game Over. */
   requestPause(): void {
-    if (this.pauseRequested || this.state.phase !== 'playing' || !this.scene.isActive()) return;
+    if (this.pauseRequested || this.cardWait > 0 || this.state.phase !== 'playing' || !this.scene.isActive()) return;
     this.pauseRequested = true;
     this.scene.pause();
     this.scene.launch('pause');
@@ -143,15 +174,32 @@ export class PlayScene extends Phaser.Scene {
     this.scene.start('title');
   }
 
-  /** Zurück zur Karte (Pause: ZUR KARTE). Die Info-Leiste bleibt; Task 5 ergänzt Leben, Kristalle und Helm der Runde. */
-  goToMap(): void {
-    if (this.leaving) return;
+  /** Ob ZUR KARTE im Pausenmenü erscheint (nur wenn das Level von der Karte kam). */
+  get canGoToMap(): boolean {
+    return this.fromMap;
+  }
+
+  /** Zurück zur Karte: Edelweiß speichern, Runde fortschreiben (Leben, Kristalle, Helm), dann die Karte an diesem Punkt.
+   *  `opened`: neu geöffnete Wege (nach dem Ergebnis) für die Einzeichen-Animation. */
+  goToMap(opened: MapPath[] = []): void {
+    if (this.leaving || !this.fromMap) return;
     this.leaving = true;
     this.saveEdelweiss();
+    this.registry.set('run', runAfterLevel(this.registry.get('run') as RunState, this.state));
+    this.openMap(opened);
+  }
+
+  /** Nach dem Ergebnis: von der Karte kommend zurück zur Karte (mit neuen Wegen), sonst zum Titel. */
+  finishResult(): void {
+    if (this.fromMap) this.goToMap(this.opened);
+    else this.goToTitle();
+  }
+
+  private openMap(opened: MapPath[]): void {
     for (const key of ['pause', 'result']) {
       if (this.scene.isActive(key) || this.scene.isPaused(key)) this.scene.stop(key);
     }
-    this.scene.start('map', { arriveAt: this.levelId });
+    this.scene.start('map', { arriveAt: nodeForLevel(WORLD1, this.levelId)?.id, opened });
   }
 
   private readonly onVisibility = (): void => {
@@ -163,6 +211,14 @@ export class PlayScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
+    if (this.cardWait > 0) {
+      this.cardWait -= delta / 1000;
+      this.controls.sample(); // Eingaben während der Titelkarte verfallen
+      if (this.cardWait <= 0) this.titleCard.setVisible(false);
+      this.scrollTo(time / 1000);
+      this.worldView.sync(this.state, time / 1000);
+      return;
+    }
     const steps = this.stepper.advance(delta); // der Schritt-Zähler rundet Bildzeiten knapp neben 1/60 s selbst
     for (let i = 0; i < steps; i++) {
       const input = this.controls.sample();
@@ -173,6 +229,7 @@ export class PlayScene extends Phaser.Scene {
         this.worldView.rebuild(this.state);
         this.cam = createCamera(this.state.player, this.viewSize, this.levelPx); // Kamera springt zum Neustart
       }
+      for (const e of events) if (e.type === 'goal') this.goalExit = e.exit;
       if (events.some((e) => e.type === 'gameOver')) this.onGameOver();
       this.stepOutcome();
       stepCamera(this.cam, this.state.player, this.viewSize, this.levelPx, STEP);
@@ -200,21 +257,36 @@ export class PlayScene extends Phaser.Scene {
   /** Je Schritt: nach Ziel und Jubel das Ergebnis zeigen, nach Game Over und Wartezeit zum Titel. */
   private stepOutcome(): void {
     const s = this.state;
-    if (s.phase === 'goal' && s.phaseTimer <= 0 && !this.resultShown) this.showResult();
+    if (s.phase === 'goal' && s.phaseTimer <= 0 && !this.resultShown) this.showResult(this.goalExit);
     if (s.phase === 'gameOver') {
       this.gameOverWait += STEP;
-      if (this.gameOverWait >= GAME_OVER_WAIT) this.goToTitle();
+      if (this.gameOverWait >= GAME_OVER_WAIT) this.afterGameOver();
     }
   }
 
+  /** Nach GAME OVER: von der Karte kommend neue Runde und zurück auf die Karte, sonst zum Titel. */
+  private afterGameOver(): void {
+    if (!this.fromMap) {
+      this.goToTitle();
+      return;
+    }
+    if (this.leaving) return;
+    this.leaving = true;
+    this.registry.set('run', runAfterGameOver());
+    this.openMap([]);
+  }
+
   /** Ergebnis speichern und anzeigen; das Spiel steht so lange (die Menü-Eingabe braucht den InputSampler allein). */
-  private showResult(): void {
+  private showResult(exit: ExitKind): void {
     this.resultShown = true;
     const store = safeStorage();
     const { time, crystals, edelweiss: e } = this.state.session;
+    const before = loadSave(store);
     const edelweiss: [boolean, boolean, boolean] = [e[0], e[1], e[2]];
-    const { data, newBest } = recordResult(loadSave(store), this.levelId, time, edelweiss);
+    const { data, newBest } = recordResult(before, this.levelId, time, edelweiss, exit);
     writeSave(store, data);
+    this.opened = openedBetween(WORLD1, before, data);
+    if (this.fromMap) this.registry.set('run', runAfterLevel(this.registry.get('run') as RunState, this.state));
     const result: ResultData = {
       levelId: this.levelId, time, edelweiss, crystals, newBest, bestTime: data.levels[this.levelId]?.bestTime ?? null,
     };
@@ -254,6 +326,10 @@ export class PlayScene extends Phaser.Scene {
     // Bildfest mitten im Spielbild (Koordinaten relativ zum Kamera-Ausschnitt).
     const t = this.gameOverText;
     t.setPosition(Math.floor((l.view.w - t.width * GAME_OVER_SCALE) / 2), Math.floor((l.view.h - GLYPH_H * GAME_OVER_SCALE) / 2));
+    // Titelkarte: doppelt groß, wenn sie ins Spielbild passt, sonst einfach.
+    const c = this.titleCard;
+    const scale = c.width * TITLE_CARD_SCALE + 2 * TITLE_CARD_MARGIN <= l.view.w ? TITLE_CARD_SCALE : 1;
+    c.setScale(scale).setPosition(Math.floor((l.view.w - c.width * scale) / 2), Math.floor((l.view.h - GLYPH_H * scale) / 2));
   }
 
   private scrollTo(time: number): void {

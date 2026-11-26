@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSave, type LevelRecord, type SaveData } from './save.ts';
-import { enterable, nodeAtPoint, nodeOpen, openedBetween, pathOpen, pickDirection, route, validateMap, withoutOpened, type WorldMap } from './worldmap.ts';
+import { enterable, nodeAtPoint, nodeForLevel, nodeOpen, openedBetween, pathOpen, pickDirection, route, validateMap, withoutOpened, type WorldMap } from './worldmap.ts';
 import { WORLD1 } from '../maps/world1.ts';
 
 const IDS = ['1-1', '1-2', '1-3', '1-4', '1-F'];
@@ -135,5 +135,12 @@ describe('Weltkarte', () => {
     expect(pathOpen(WORLD1, second, mid)).toBe(false);
     expect(nodeOpen(WORLD1, second.to, mid)).toBe(false);
     expect(withoutOpened(WORLD1, after, [])).toEqual(after);
+  });
+});
+
+describe('Punkt zu einem Level', () => {
+  it('nodeForLevel findet den Punkt, unbekanntes Level nicht', () => {
+    expect(nodeForLevel(WORLD1, '1-2')?.id).toBe('1-2');
+    expect(nodeForLevel(WORLD1, 'uebungsplatz')).toBeUndefined();
   });
 });

@@ -7,7 +7,6 @@ import { OutlinedText } from '../gfx/pixel-text.ts';
 import { GLYPH_H, textWidth } from '../gfx/font.ts';
 import type { Controls } from '../input/controls.ts';
 import { isShortcut } from '../input/keyboard.ts';
-import { START_LEVEL } from '../levels/index.ts';
 import { TEXT } from '../ui-text.ts';
 import type { Rect } from '../core/types.ts';
 import { BUTTON_H, drawButton } from './menu.ts';
@@ -119,7 +118,7 @@ export class TitleScene extends Phaser.Scene {
     this.startGame();
   }
 
-  /** Tipp oder Taste: Ton entsperren, Spiel und Info-Leiste starten. */
+  /** Tipp oder Taste: Ton entsperren, Weltkarte und Info-Leiste starten. */
   private startGame(): void {
     if (this.starting) return;
     this.starting = true;
@@ -127,7 +126,7 @@ export class TitleScene extends Phaser.Scene {
     this.sfx.play('select');
     // Der startende Finger bzw. die Taste soll im Spiel nicht als frischer Sprung ankommen.
     this.controls.sample();
-    this.scene.start('play', { levelId: START_LEVEL });
+    this.scene.start('map');
     this.scene.launch('ui');
   }
 

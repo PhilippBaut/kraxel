@@ -180,3 +180,8 @@ export function withoutOpened(m: WorldMap, save: SaveData, paths: readonly MapPa
   }
   return { ...save, levels };
 }
+
+/** Der Kartenpunkt, der zu einem Level gehört (null, wenn es keinen gibt, z. B. beim Entwickler-Zugang). */
+export function nodeForLevel(m: WorldMap, levelId: string): MapNode | undefined {
+  return m.nodes.find((n) => n.levelId === levelId);
+}

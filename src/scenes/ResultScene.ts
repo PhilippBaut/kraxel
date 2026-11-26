@@ -99,11 +99,11 @@ export class ResultScene extends Phaser.Scene {
     this.scene.stop();
   }
 
-  /** In Meilenstein 1 gibt es nur ein Level: WEITER führt zum Titel. */
+  /** WEITER: zurück zur Karte (mit den neu geöffneten Wegen), beim Entwickler-Zugang zum Titel. */
   private next(): void {
     if (this.closing) return;
     this.closing = true;
-    (this.scene.get('play') as PlayScene).goToTitle();
+    (this.scene.get('play') as PlayScene).finishResult();
   }
 
   /** Tafel mittig im Spielbild. */

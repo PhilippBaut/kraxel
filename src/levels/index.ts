@@ -5,5 +5,5 @@ export const LEVELS: Record<string, string> = Object.fromEntries(
   Object.entries(files).map(([path, text]) => [path.replace(/^\.\//, '').replace(/\.txt$/, ''), text]),
 );
 
-/** Das Level, das der Titel startet. */
+/** Ausweichlevel für `?level=` ohne oder mit unbekannter Angabe (nur Entwickler-Zugang; der Titel führt zur Karte). */
 export const START_LEVEL = '1-1';

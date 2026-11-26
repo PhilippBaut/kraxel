@@ -41,7 +41,9 @@ export class PauseScene extends Phaser.Scene {
     const editor = { label: () => TEXT.CONTROLS, run: () => this.openEditor() };
     this.menu = new Menu(this, this.context === 'map'
       ? [resume, sound, editor, { label: () => TEXT.TO_TITLE, run: () => this.toTitle() }]
-      : [resume, { label: () => TEXT.RESTART, run: () => this.restart() }, { label: () => TEXT.TO_MAP, run: () => this.toMap() }, sound, editor]);
+      : [resume, { label: () => TEXT.RESTART, run: () => this.restart() },
+        ...((this.scene.get('play') as PlayScene).canGoToMap ? [{ label: () => TEXT.TO_MAP, run: () => this.toMap() }] : []),
+        sound, editor]);
     this.applyLayout(this.registry.get('layout') as Layout);
     const offPause = controls.onPause(() => { if (this.scene.isActive()) this.resume(); });
     this.game.events.on('layout', this.applyLayout, this);
