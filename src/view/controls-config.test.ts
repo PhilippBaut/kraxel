@@ -93,6 +93,14 @@ describe('Knopf-Anordnung', () => {
     expect(moveButton(l, 'jump', l.pauseHit.x + 16, l.pauseHit.y + 30)).toBeNull();
   });
 
+  it('hochkant: Knopf oben rechts unter dem Pause-Streifen wird abgelehnt', () => {
+    const l = P();
+    const a = l.controlsArea;
+    expect(moveButton(l, 'jump', a.x + a.w, a.y)).toBeNull();
+    const oc: OrientationConfig = { dpad: place(0, 1), jump: place(1, 0), action: place(0.5, 0.5) };
+    expect(applyControls(l, oc)).toEqual(l);
+  });
+
   it.each([[375, 667, { top: 20, right: 0, bottom: 0, left: 0 }], [667, 375, { top: 0, right: 0, bottom: 0, left: 0 }]])(
     'gespeicherte Anordnung auf anderem Bildschirm (%ix%i): im Bereich oder Standard', (w, h, ins) => {
       const big = computeLayout(430, 932, { top: 59, right: 0, bottom: 34, left: 0 });

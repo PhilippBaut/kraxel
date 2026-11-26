@@ -87,14 +87,14 @@ function rectHitsCircle(r: Rect, c: Circle): boolean {
   return Math.hypot(c.cx - nx, c.cy - ny) < c.r;
 }
 
-/** Gültig: jeder Kreis ganz im Bereich, Abstand mindestens rA + rB + Lücke, quer keine Berührung der Pause-Fläche. */
+/** Gültig: jeder Kreis ganz im Bereich, Abstand mindestens rA + rB + Lücke, keine Berührung der Pause-Fläche (in beiden Ansichten). */
 function isValid(l: Layout): boolean {
   const a = l.controlsArea;
   const cs = BUTTON_IDS.map((id) => l[id]);
   for (const c of cs) {
     if (![c.cx, c.cy, c.r, c.hitR].every(Number.isFinite)) return false;
     if (c.cx - c.r < a.x - EPS || c.cx + c.r > a.x + a.w + EPS || c.cy - c.r < a.y - EPS || c.cy + c.r > a.y + a.h + EPS) return false;
-    if (l.orientation === 'landscape' && rectHitsCircle(l.pauseHit, c)) return false;
+    if (rectHitsCircle(l.pauseHit, c)) return false;
   }
   for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
     const p = cs[i]!, q = cs[j]!;
