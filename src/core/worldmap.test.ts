@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSave, type LevelRecord, type SaveData } from './save.ts';
-import { enterable, nodeAtPoint, nodeOpen, openedBetween, pathOpen, pickDirection, route, validateMap, type WorldMap } from './worldmap.ts';
+import { enterable, nodeAtPoint, nodeOpen, openedBetween, pathOpen, pickDirection, route, validateMap, withoutOpened, type WorldMap } from './worldmap.ts';
 import { WORLD1 } from '../maps/world1.ts';
 
 const IDS = ['1-1', '1-2', '1-3', '1-4', '1-F'];
@@ -115,5 +115,25 @@ describe('Weltkarte', () => {
     expect(enterable(WORLD1, '1-1', defaultSave())).toBe(true);
     expect(enterable(WORLD1, '1-2', defaultSave())).toBe(false);
     expect(enterable(WORLD1, '1-F', save({ '1-1': { exits: { normal: true, secret: false } }, '1-2': { exits: { normal: true, secret: false } }, '1-3': { exits: { normal: false, secret: true } } }))).toBe(true);
+  });
+
+  it('withoutOpened: nach dem ersten von zwei Wegen ist dieser offen samt Ziel, der zweite noch zu', () => {
+    const after = save({
+      '1-1': { completed: true, exits: { normal: true, secret: false } },
+      '1-2': { completed: true, exits: { normal: true, secret: false } },
+      '1-3': { completed: true, exits: { normal: true, secret: true } },
+    });
+    const opened = openedBetween(WORLD1, save({ '1-1': { completed: true, exits: { normal: true, secret: false } }, '1-2': { completed: true, exits: { normal: true, secret: false } }, '1-3': { completed: true } }), after);
+    expect(opened.map((p) => p.to).sort()).toEqual(['1-4', '1-F']);
+    const [first, second] = opened;
+    const before = withoutOpened(WORLD1, after, opened);
+    expect(opened.every((p) => !pathOpen(WORLD1, p, before))).toBe(true);
+    expect(nodeOpen(WORLD1, '1-4', before) || nodeOpen(WORLD1, '1-F', before)).toBe(false);
+    const mid = withoutOpened(WORLD1, after, [second]);
+    expect(pathOpen(WORLD1, first, mid)).toBe(true);
+    expect(nodeOpen(WORLD1, first.to, mid)).toBe(true);
+    expect(pathOpen(WORLD1, second, mid)).toBe(false);
+    expect(nodeOpen(WORLD1, second.to, mid)).toBe(false);
+    expect(withoutOpened(WORLD1, after, [])).toEqual(after);
   });
 });

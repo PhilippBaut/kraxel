@@ -169,3 +169,14 @@ export function enterable(m: WorldMap, id: string, save: SaveData): boolean {
   const n = nodeById(m, id);
   return n !== undefined && (n.kind === 'level' || n.kind === 'fortress') && nodeOpen(m, id, save);
 }
+
+/** Stand ohne die Ausgänge, die diese Wege geöffnet haben (Darstellung vor bzw. während der Einzeichen-Animation). */
+export function withoutOpened(m: WorldMap, save: SaveData, paths: readonly MapPath[]): SaveData {
+  const levels = { ...save.levels };
+  for (const p of paths) {
+    const id = nodeById(m, p.from)?.levelId;
+    if (id == null || p.via === 'always' || !levels[id]) continue;
+    levels[id] = { ...levels[id], exits: { ...levels[id].exits, [p.via]: false } };
+  }
+  return { ...save, levels };
+}

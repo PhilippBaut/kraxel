@@ -4,7 +4,7 @@ import Phaser from 'phaser';
 import { formatTime } from '../core/format.ts';
 import { newRun } from '../core/run.ts';
 import { loadSave, safeStorage, withLastNode, writeSave, type SaveData } from '../core/save.ts';
-import { enterable, nodeAtPoint, nodeOpen, openedBetween, pathOpen, pickDirection, route, type Dir, type MapNode, type MapPath } from '../core/worldmap.ts';
+import { enterable, nodeAtPoint, nodeOpen, openedBetween, pathOpen, pickDirection, route, withoutOpened, type Dir, type MapNode, type MapPath } from '../core/worldmap.ts';
 import { helmName } from '../gfx/sprites.ts';
 import type { Controls } from '../input/controls.ts';
 import { zoneAt } from '../input/touch.ts';
@@ -55,6 +55,8 @@ export class MapScene extends Phaser.Scene {
   private pending: { arriveAt?: string; opened?: MapPath[] } = {};
   private leaving = false;
   private pausing = false;
+  /** Kurz nach dem Fortsetzen gesperrt: derselbe Tipp, der WEITER drückt, darf Kraxel nicht auch bewegen. */
+  private tapLock = false;
   private prevHeld: Record<Dir, boolean> = { left: false, right: false, up: false, down: false };
   private faceLeft = false;
 
@@ -82,7 +84,7 @@ export class MapScene extends Phaser.Scene {
 
     this.save = loadSave(safeStorage());
     const opened = (this.pending.opened ?? []).filter((p) => pathOpen(this.map, p, this.save));
-    this.shown = opened.length > 0 ? this.withoutExits(this.save, opened) : this.save;
+    this.shown = opened.length > 0 ? withoutOpened(this.map, this.save, opened) : this.save;
     this.reveals = opened.map((path) => ({ path, progress: 0 }));
     this.walk = null;
     this.leaving = false;
@@ -117,17 +119,6 @@ export class MapScene extends Phaser.Scene {
       this.game.events.off('layout', this.applyLayout, this);
       this.events.off(Phaser.Scenes.Events.RESUME, this.onResume, this);
     });
-  }
-
-  /** Stand ohne die Ausgänge, die diese Wege geöffnet haben (für die Darstellung vor der Animation). */
-  private withoutExits(save: SaveData, paths: MapPath[]): SaveData {
-    const levels = { ...save.levels };
-    for (const p of paths) {
-      const id = this.map.nodes.find((n) => n.id === p.from)?.levelId;
-      if (id == null || p.via === 'always' || !levels[id]) continue;
-      levels[id] = { ...levels[id], exits: { ...levels[id].exits, [p.via]: false } };
-    }
-    return { ...save, levels };
   }
 
   // ------------------------------------------------------------ Aufbau
@@ -295,7 +286,8 @@ export class MapScene extends Phaser.Scene {
     r.progress = Math.min(1, r.progress + dt / REVEAL_SECONDS);
     if (r.progress >= 1) {
       this.reveals.shift();
-      if (this.reveals.length === 0) this.shown = this.save;
+      // Fertige Wege bleiben offen: gezeigt wird der Stand ohne die noch ausstehenden Wege.
+      this.shown = this.reveals.length === 0 ? this.save : withoutOpened(this.map, this.save, this.reveals.map((x) => x.path));
     }
     this.refresh();
   }
@@ -323,7 +315,10 @@ export class MapScene extends Phaser.Scene {
 
   /** Tipp in Spielpixeln: Punkt antippen läuft hin, der aktuelle Punkt betritt das Level. */
   private onTap(x: number, y: number): void {
-    if (!this.scene.isActive() || this.busy) return;
+    if (!this.scene.isActive() || this.busy || this.tapLock) return;
+    for (const key of ['pause', 'controls']) {
+      if (this.scene.isActive(key) || this.scene.isSleeping(key) || this.scene.isPaused(key)) return;
+    }
     const l = this.layout;
     const p = l.pauseHit;
     if (x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h) return; // Pause macht UiScene
@@ -360,7 +355,10 @@ export class MapScene extends Phaser.Scene {
 
   private onResume(): void {
     this.pausing = false;
-    this.controls.sample();
+    this.tapLock = true;
+    setTimeout(() => { this.tapLock = false; }, 0); // gilt bis zum Ende des laufenden Ereignisses
+    const f = this.controls.sample(); // schon gehaltene Richtungen sind keine neue Flanke
+    this.prevHeld = { left: f.left, right: f.right, up: f.up, down: f.down };
   }
 
   /** TITEL im Kartenmenü: Info-Leiste und Menü beenden, zum Titel. */
