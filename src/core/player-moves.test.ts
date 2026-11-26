@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createPlayer, PLAYER_H, PLAYER_W } from './player.ts';
-import { DEFAULT_TUNING } from './tuning.ts';
+import { DEFAULT_TUNING, jumpGravity } from './tuning.ts';
 import { FLAT, gridFrom, runPlayer } from './test-helpers.ts';
 import type { Script } from './test-helpers.ts';
 
@@ -54,9 +54,11 @@ describe('Kraxeln beim Sprung', () => {
       : [[{ right: true, up: true, jump: true }, 80]];
     return y0 - runPlayer(p, WALL, script).minY;
   }
-  it('oben von Anfang an gedrückt kostet höchstens 3 px Sprunghöhe gegenüber oben erst am Scheitel', () => {
+  it('oben von Anfang an gedrückt kostet höchstens den Rest des Sprungs bei vy = -climbSpeed an Höhe', () => {
+    // Wer oben früh drückt, kraxelt ab vy = -climbSpeed; der Sprung hätte dort noch climbSpeed² / (2 g) Anstieg übrig. Dazu 1 px Spiel.
+    const maxLoss = DEFAULT_TUNING.climbSpeed ** 2 / (2 * jumpGravity(DEFAULT_TUNING)) + 1;
     const apex = jumpHeightAt(Math.round(DEFAULT_TUNING.timeToApex * 60));
-    for (const upAfter of [0, 1, 3, 6, 10, 16]) expect(jumpHeightAt(upAfter)).toBeGreaterThanOrEqual(apex - 3);
+    for (const upAfter of [0, 1, 3, 6, 10, 16]) expect(jumpHeightAt(upAfter)).toBeGreaterThanOrEqual(apex - maxLoss);
   });
   it('steigt nach dem Absprung nicht mit Kraxel-Tempo, solange der Sprung schneller ist', () => {
     const p = createPlayer(4, 14); p.body.x = 96 - PLAYER_W;
@@ -77,6 +79,27 @@ describe('Kraxeln beim Sprung', () => {
       runPlayer(p, g, script);
       expect(p.grounded, `upAfter ${upAfter}`).toBe(true); expect(p.body.y + PLAYER_H, `upAfter ${upAfter}`).toBe(144);
     }
+  });
+});
+
+describe('Hochhieven ohne Seitentaste', () => {
+  // Nur „oben“ (Steuerkreuz): Kraxel muss das Hochhieven zu Ende bringen und auf der Wand stehen.
+  for (const h of [1, 2, 3]) {
+    it(`nur oben an einer ${h} Kachel hohen Wand: steht oben`, () => {
+      const g = gridFrom([...Array(15 - h).fill('......'), ...Array(h).fill('......##########'), '################']);
+      const p = createPlayer(4, 14); p.body.x = 96 - PLAYER_W; p.facing = 1;
+      runPlayer(p, g, [[{}, 2]]);
+      runPlayer(p, g, [[{ up: true, jump: h === 3 }, 90]]);
+      expect(p.grounded).toBe(true); expect(p.body.y + PLAYER_H).toBe((15 - h) * 16);
+      expect(p.body.x + PLAYER_W).toBeGreaterThan(96);
+    });
+  }
+  it('Wegdrücken beim Hochhieven bricht es ab', () => {
+    const g = gridFrom([...Array(13).fill('......'), ...Array(2).fill('......##########'), '################']);
+    const p = createPlayer(4, 14); p.body.x = 96 - PLAYER_W; p.facing = 1;
+    runPlayer(p, g, [[{}, 2]]);
+    runPlayer(p, g, [[{ up: true }, 60], [{ left: true }, 60]]);
+    expect(p.body.x + PLAYER_W).toBeLessThanOrEqual(96);
   });
 });
 

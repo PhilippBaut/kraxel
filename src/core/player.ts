@@ -14,6 +14,8 @@ export const PLAYER_H = 14;
 const SKID_MIN_SPEED = 30;
 const MANTLE_SPEED_X = 60;
 const WALL_LOCK_ACCEL_MUL = 0.3;
+/** So lange schiebt Kraxel nach dem Hochhieven weiter zur Wand, auch ohne Seitentaste. */
+const MANTLE_PUSH_TIME = 0.25;
 
 export interface PlayerState {
   body: Body; facing: -1 | 1; mode: PlayerMode; modeTimer: number;
@@ -23,6 +25,8 @@ export interface PlayerState {
   helm: boolean; invuln: number; anim: PlayerAnim; animTime: number;
   /** Restzeit der Schmerz-Haltung in s (`anim = 'hurt'`). */
   hurtTimer: number;
+  /** Restzeit des Hochhievens in s: Kraxel schiebt zur Wand (`wallDir`), bis er oben steht. */
+  mantleTimer: number;
 }
 
 export interface PlayerStepResult {
@@ -39,7 +43,7 @@ export function createPlayer(cx: number, cy: number): PlayerState {
     grounded: false, coyote: 0, jumpBuffer: 0, jumpRising: false,
     runTimer: 0, runDir: 0, speedCap: DEFAULT_TUNING.walkSpeed,
     wallDir: 0, wallLock: 0, climbLeft: DEFAULT_TUNING.climbBudget,
-    helm: false, invuln: 0, anim: 'idle', animTime: 0, hurtTimer: 0,
+    helm: false, invuln: 0, anim: 'idle', animTime: 0, hurtTimer: 0, mantleTimer: 0,
   };
 }
 
@@ -98,7 +102,7 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
       p.wallDir = dir as -1 | 1;
     } else {
       p.mode = 'normal';
-      if (p.wallLock <= 0) p.wallDir = 0;
+      if (p.wallLock <= 0 && p.mantleTimer <= 0) p.wallDir = 0;
     }
   }
 
@@ -125,6 +129,7 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
     if (wallCellFreeAtMid(p, grid)) {
       b.vy = -t.mantleSpeedY;
       b.vx = p.wallDir * MANTLE_SPEED_X;
+      p.mantleTimer = MANTLE_PUSH_TIME;
       p.facing = p.wallDir as -1 | 1;
       p.mode = 'normal';
     } else {
@@ -135,6 +140,12 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
   }
   if (p.mode !== 'climb') {
     if (!overrideVx) skidding = moveHorizontal(p, dir, t, dt);
+    // Hochhieven zu Ende bringen: weiter zur Wand schieben. Wegdrücken oder Landen beendet es.
+    if (p.mantleTimer > 0) {
+      p.mantleTimer = Math.max(0, p.mantleTimer - dt);
+      if (overrideVx || dir === -p.wallDir || (p.grounded && b.vy >= 0)) p.mantleTimer = 0;
+      else b.vx = p.wallDir * MANTLE_SPEED_X;
+    }
     applyGravity(p, input, t, dt);
     if (p.mode === 'wallSlide') b.vy = Math.min(b.vy, t.wallSlideSpeed);
   }
