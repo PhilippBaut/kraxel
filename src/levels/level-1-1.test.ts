@@ -3,11 +3,13 @@
 import { describe, expect, it } from 'vitest';
 import { STEP, TILE, VIEW_H } from '../config.ts';
 import { createCamera, stepCamera } from '../core/camera.ts';
-import { createGame } from '../core/game.ts';
+import { createGame, stepGame } from '../core/game.ts';
+import { InputSampler } from '../core/input-frame.ts';
+import { DEFAULT_TUNING } from '../core/tuning.ts';
 import type { GameState } from '../core/game.ts';
 import { parseLevel, validateLevel } from '../core/level.ts';
 import type { LevelData } from '../core/level.ts';
-import { placePlayer, runGame } from '../core/test-helpers.ts';
+import { held, placePlayer, runGame } from '../core/test-helpers.ts';
 import type { Script } from '../core/test-helpers.ts';
 import { Cell } from '../core/types.ts';
 import type { GameEvent } from '../core/types.ts';
@@ -222,6 +224,62 @@ describe('Level 1-1: Gruben', () => {
       expect(ev.filter((e) => e.type === 'death'), `Grube ${pit.from}-${pit.to}`).toEqual([]);
       expect(s.player.grounded, `Grube ${pit.from}-${pit.to}`).toBe(true);
       expect(s.player.body.x + s.player.body.w / 2, `Grube ${pit.from}-${pit.to}`).toBeGreaterThan((pit.to + 1) * TILE);
+    }
+  });
+
+  it('Gegner auf der Landeinsel nehmen niemandem die Landung, mit echter Kamera und wartendem Spieler', () => {
+    const checkpoint = L.spawns.find((e) => e.kind === 'checkpoint')!;
+    const levelPx = { w: L.width * TILE, h: L.height * TILE };
+    const SECOND = 60;
+    /** Läuft den Anlauf mit echter Kamera ab; gibt alle Ereignisse ab dem Absprung bis kurz nach der Landung zurück. */
+    function tryPit(pit: { from: number; to: number }, viewW: number, mode: 'run' | 'stand', wait: number): { events: GameEvent[]; landed: boolean } {
+      const top = surface(L, pit.from - 1);
+      let start = pit.from - 1;
+      if (mode === 'run') {
+        while (start > pit.from - 8 && surface(L, start - 1) === top && !solidCell(L, start - 1, top - 1) && !solidCell(L, start - 1, top - 2)) start--;
+      }
+      const s = createGame(L); // mit Gegnern
+      placePlayer(s, start, top - 1);
+      const view = { w: viewW, h: VIEW_H };
+      const cam = createCamera(s.player, view, levelPx);
+      const sampler = new InputSampler();
+      const events: GameEvent[] = [];
+      let recording = false;
+      const step = (input: Parameters<typeof held>[0]) => {
+        const ev = stepGame(s, sampler.sample(held(input)), DEFAULT_TUNING, { x: cam.x, w: viewW }, STEP);
+        if (recording) events.push(...ev);
+        stepCamera(cam, s.player, view, levelPx, STEP);
+      };
+      for (let i = 0; i < 3; i++) step({});
+      const edge = () => s.player.body.x + s.player.body.w >= pit.from * TILE - 2;
+      if (mode === 'run') {
+        for (let i = 0; i < Math.round(wait * SECOND); i++) step({}); // vor dem Anlauf warten
+        for (let n = 0; n < 300 && !edge(); n++) step({ right: true });
+      } else {
+        for (let n = 0; n < 300 && !edge(); n++) step({ right: true });
+        for (let i = 0; i < 40; i++) step({}); // zur Ruhe kommen
+        for (let i = 0; i < Math.round(wait * SECOND); i++) step({});
+      }
+      recording = true;
+      for (let i = 0; i < 40; i++) step({ right: true, jump: true });
+      for (let n = 0; n < 200 && !s.player.grounded && s.phase === 'playing'; n++) step({ right: true });
+      const landed = s.player.grounded;
+      for (let i = 0; i < 6; i++) step({ right: true }); // der Aufprall zählt noch zur Landung
+      return { events, landed };
+    }
+
+    for (const pit of pits(L).filter((p) => p.from > checkpoint.cx)) {
+      for (const viewW of [256, 416, 512]) {
+        for (const wait of [0, 0.25, 0.5, 0.75, 1, 1.5, 2, 3]) {
+          const r = tryPit(pit, viewW, 'run', wait);
+          expect(r.events.filter((e) => e.type === 'hurt'), `Grube ${pit.from}-${pit.to} Anlauf nach ${wait} s, Bild ${viewW}`).toEqual([]);
+          expect(r.landed, `Grube ${pit.from}-${pit.to} Anlauf nach ${wait} s, Bild ${viewW}: gelandet`).toBe(true);
+          if (pit.to - pit.from + 1 <= 4) {
+            const t = tryPit(pit, viewW, 'stand', wait);
+            expect(t.events.filter((e) => e.type === 'hurt'), `Grube ${pit.from}-${pit.to} Stand nach ${wait} s, Bild ${viewW}`).toEqual([]);
+          }
+        }
+      }
     }
   });
 
