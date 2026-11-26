@@ -1,3 +1,4 @@
+import './error-overlay.ts'; // zuerst: fängt auch Fehler beim Laden der übrigen Module
 import Phaser from 'phaser';
 import { Sfx } from './audio/sfx.ts';
 import { loadSave, safeStorage } from './core/save.ts';
@@ -96,5 +97,9 @@ function queueLayout(): void {
 }
 
 window.addEventListener('resize', queueLayout);
-window.addEventListener('orientationchange', queueLayout);
+// iOS meldet Größe und Safe-Area nach einer Drehung oft verspätet: später noch einmal messen (ohne Änderung passiert nichts).
+window.addEventListener('orientationchange', () => {
+  queueLayout();
+  window.setTimeout(queueLayout, 300);
+});
 window.visualViewport?.addEventListener('resize', queueLayout);

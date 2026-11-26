@@ -35,4 +35,18 @@ describe('FixedStepper', () => {
     expect(s.advance(100)).toBe(3);
     expect(s.advance(9)).toBe(0);
   });
+
+  it('knapp neben 60 Hz (59,94 Hz, 61 Hz, Zittern) ergibt nie 0 oder 2 Schritte', () => {
+    for (const frameMs of [1000 / 59.94, 1000 / 61, 16.4, 17.0, 17.4]) {
+      const s = new FixedStepper();
+      for (let i = 0; i < 2000; i++) expect(s.advance(frameMs), `${frameMs} ms, Bild ${i}`).toBe(1);
+    }
+  });
+
+  it('weiter weg von 60 Hz wird nicht gerundet (50 Hz: fünf Schritte pro sechs Bilder)', () => {
+    const s = new FixedStepper();
+    let n = 0;
+    for (let i = 0; i < 300; i++) n += s.advance(20);
+    expect(n).toBe(360);
+  });
 });

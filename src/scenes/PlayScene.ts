@@ -120,6 +120,7 @@ export class PlayScene extends Phaser.Scene {
 
   /** Zurück zum Levelanfang (Pause: NEU STARTEN, Ergebnis: NOCHMAL). Die Aufrufer setzen die Szene danach fort. */
   restart(): void {
+    this.saveEdelweiss(); // wie bei Game Over: in diesem Durchgang gefundene Edelweiß gehen nicht verloren
     restartLevel(this.state);
     this.worldView.rebuild(this.state);
     this.cam = createCamera(this.state.player, this.viewSize, this.levelPx); // Kamera springt zum Neustart
@@ -149,7 +150,7 @@ export class PlayScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    const steps = this.stepper.advance(delta);
+    const steps = this.stepper.advance(delta); // der Schritt-Zähler rundet Bildzeiten knapp neben 1/60 s selbst
     for (let i = 0; i < steps; i++) {
       const input = this.controls.sample();
       const events = stepGame(this.state, input, this.tuning, { x: this.cam.x, w: this.viewSize.w }, STEP);
@@ -168,13 +169,17 @@ export class PlayScene extends Phaser.Scene {
     this.drawDebug(delta);
   }
 
+  /** Hält die bisher gesammelten Edelweiß im Speicherstand fest (nur dazu, nie weg). */
+  private saveEdelweiss(): void {
+    const e = this.state.session.edelweiss;
+    if (!e.some(Boolean)) return;
+    const store = safeStorage();
+    writeSave(store, recordEdelweiss(loadSave(store), this.levelId, [e[0], e[1], e[2]]));
+  }
+
   /** Game Over: gesammelte Edelweiß bleiben gespeichert, GAME OVER erscheint. */
   private onGameOver(): void {
-    const e = this.state.session.edelweiss;
-    if (e.some(Boolean)) {
-      const store = safeStorage();
-      writeSave(store, recordEdelweiss(loadSave(store), this.levelId, [e[0], e[1], e[2]]));
-    }
+    this.saveEdelweiss();
     this.gameOverWait = 0;
     this.gameOverText.setVisible(true);
   }
