@@ -7,9 +7,11 @@ import type { Body, GameEvent } from './types.ts';
 export interface Pebble { body: Body; age: number }
 export const PEBBLE_MAX = 2;
 export const PEBBLE_COOLDOWN = 0.2;
+/** Tempo relativ zu Kraxel; läuft er in Schussrichtung, kommt sein Tempo dazu. */
 export const PEBBLE_SPEED = 180;
-export const PEBBLE_LIFT = 60;
-export const PEBBLE_GRAVITY = 300;
+/** Anfangssteigung (px/s nach oben): der Scheitel liegt nur etwa 6 px über dem Start, so trifft der Kiesel Käfer und Schnecken in jeder Entfernung. */
+export const PEBBLE_LIFT = 35;
+export const PEBBLE_GRAVITY = 100;
 export const PEBBLE_LIFE = 1.2;
 export const PEBBLE_SIZE = 4;
 
@@ -17,16 +19,24 @@ function popEvent(p: Pebble): GameEvent {
   return { type: 'pebblePop', x: p.body.x + p.body.w / 2, y: p.body.y + p.body.h / 2 };
 }
 
-/** Schießt einen Kiesel in Blickrichtung, wenn Kraxel die Schleuder trägt, weniger als 2 fliegen und die Abklingzeit um ist. */
+/** Schussrichtung: Blickrichtung, an der Wand (Rutschen, Klettern) von der Wand weg. */
+function shootDir(s: GameState): -1 | 1 {
+  const p = s.player;
+  return (p.mode === 'wallSlide' || p.mode === 'climb') && p.wallDir !== 0 ? (-p.wallDir as -1 | 1) : p.facing;
+}
+
+/** Schießt einen Kiesel flach in Schussrichtung, wenn Kraxel die Schleuder trägt, weniger als 2 fliegen und die Abklingzeit um ist. */
 export function shoot(s: GameState): GameEvent[] {
   const p = s.player;
   if (p.special !== 'sling' || s.pebbles.length >= PEBBLE_MAX || s.pebbleCooldown > 0) return [];
   const b = p.body;
+  const dir = shootDir(s);
+  const vorwaerts = Math.max(0, b.vx * dir); // Kraxels Tempo in Schussrichtung, damit der Kiesel im Lauf nicht zurückbleibt
   s.pebbles.push({
     age: 0,
     body: {
       x: b.x + b.w / 2 - PEBBLE_SIZE / 2, y: b.y + b.h / 2 - PEBBLE_SIZE / 2, w: PEBBLE_SIZE, h: PEBBLE_SIZE,
-      vx: p.facing * PEBBLE_SPEED, vy: -PEBBLE_LIFT,
+      vx: dir * (PEBBLE_SPEED + vorwaerts), vy: -PEBBLE_LIFT,
     },
   });
   s.pebbleCooldown = PEBBLE_COOLDOWN;

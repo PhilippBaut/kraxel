@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { killPlayer, respawn, restartLevel } from './game.ts';
 import type { GameState } from './game.ts';
-import { PEBBLE_MAX } from './pebbles.ts';
+import { TILE } from '../config.ts';
+import { PEBBLE_MAX, PEBBLE_SPEED } from './pebbles.ts';
 import { createEnemy } from './enemies.ts';
 import { Cell } from './types.ts';
 import { gameFrom, runGame } from './test-helpers.ts';
@@ -14,6 +15,24 @@ const armed = (rows: string[] = FIELD): GameState => {
   return s;
 };
 const types = (ev: Array<{ type: string }>) => ev.map((e) => e.type);
+
+/** Flacher Boden, 70 Kacheln breit: Kraxel steht in Spalte 2. */
+const FLAT_ROWS = [...Array(5).fill('.'.repeat(70)), '..P' + '.'.repeat(67), '#'.repeat(70)];
+
+/** Schießt einmal und fliegt den Kiesel ab; liefert die x-Mitte des Kiesels im letzten Schritt vor dem Verschwinden, dazu Kraxels Vorderkante beim Schuss. */
+function schussWeite(s: GameState, vor: Parameters<typeof runGame>[1]): { ende: number; front: number; alter: number; tempo: number } {
+  runGame(s, vor);
+  const front = s.player.body.x + s.player.body.w;
+  runGame(s, [[{ action: true, right: s.player.facing > 0 }, 1]]);
+  const p = s.pebbles[0]!;
+  const tempo = s.player.body.vx;
+  let ende = p.body.x + p.body.w / 2;
+  for (let i = 0; i < 100 && s.pebbles.length > 0; i++) {
+    ende = p.body.x + p.body.w / 2;
+    runGame(s, [[{}, 1]]);
+  }
+  return { ende, front, alter: p.age, tempo };
+}
 
 describe('Kiesel', () => {
   it('ohne Schleuder kein Kiesel', () => {
@@ -51,7 +70,10 @@ describe('Kiesel', () => {
     expect(s.pebbles[0]).toBe(p);
     expect(p.body.x - x0).toBeGreaterThan(85);
     expect(p.body.x - x0).toBeLessThan(95);
-    expect(p.body.y).toBeGreaterThan(y0); // 60 px/s nach oben, 300 px/s² Schwerkraft: nach 0,5 s tiefer
+    // 35 px/s nach oben, 100 px/s² Schwerkraft: Scheitel bei 0,35 s, nach 0,5 s noch über der Starthöhe
+    expect(p.body.y).toBeLessThan(y0);
+    runGame(s, [[{}, 33]]); // 1,05 s: deutlich tiefer als der Start
+    expect(p.body.y).toBeGreaterThan(y0 + 10);
   });
 
   it('Wand direkt vor Kraxel: Kiesel zerplatzt sofort', () => {
@@ -122,5 +144,61 @@ describe('Kiesel', () => {
     restartLevel(c);
     expect(c.pebbles.length).toBe(0);
     expect(c.pebbleCooldown).toBe(0);
+  });
+
+  it('stehend geschossen fliegt der Kiesel flach: mindestens 8 Kacheln weit, bevor er am Boden zerplatzt oder abläuft', () => {
+    const s = armed(FLAT_ROWS);
+    const r = schussWeite(s, [[{}, 5]]);
+    expect(r.ende - r.front).toBeGreaterThanOrEqual(8 * TILE);
+    expect(r.alter).toBeGreaterThan(0.8);
+  });
+
+  it('im Lauf geschossen landet der Kiesel mindestens 6 Kacheln vor Kraxels Vorderkante', () => {
+    const s = armed(FLAT_ROWS);
+    const r = schussWeite(s, [[{ right: true }, 40]]);
+    expect(r.tempo).toBeGreaterThan(100);
+    expect(r.ende - r.front).toBeGreaterThanOrEqual(6 * TILE);
+  });
+
+  it('Kraxels Vorwärtstempo kommt zum Kiesel, Rückwärtstempo nicht', () => {
+    const a = armed(FLAT_ROWS);
+    runGame(a, [[{ right: true }, 40]]);
+    const vx = a.player.body.vx;
+    runGame(a, [[{ action: true, right: true }, 1]]);
+    expect(a.pebbles[0]!.body.vx).toBeGreaterThan(PEBBLE_SPEED + vx - 20);
+    const b = armed(FLAT_ROWS);
+    b.player.body.x = 30 * TILE;
+    runGame(b, [[{ right: true }, 40]]);
+    b.player.facing = -1; // läuft noch nach rechts, schaut aber nach links
+    runGame(b, [[{ action: true }, 1]]);
+    expect(b.pebbles[0]!.body.vx).toBeCloseTo(-PEBBLE_SPEED, 0);
+  });
+
+  it('an der Wand (Rutschen oder Klettern) schießt Kraxel von der Wand weg', () => {
+    const rows = ['.......###', '.......###', '.......###', '.......###', '.......###', '.......###', '.......###', '.......###', '.......###', '.......###', '..P....###', '##########'];
+    for (const modus of ['wallSlide', 'climb'] as const) {
+      const s = armed(rows);
+      const hold = modus === 'climb' ? { right: true, up: true } : { right: true };
+      runGame(s, [[{ right: true }, 60], [modus === 'climb' ? hold : { right: true, jump: true }, 1]]);
+      for (let i = 0; i < 120 && s.player.mode !== modus; i++) runGame(s, [[hold, 1]]);
+      expect(s.player.mode).toBe(modus);
+      expect(s.player.wallDir).toBe(1);
+      runGame(s, [[{ ...hold, action: true }, 1]]);
+      expect(s.pebbles.length).toBe(1);
+      expect(s.pebbles[0]!.body.vx).toBeLessThan(0);
+    }
+  });
+
+  it('stehend trifft der Kiesel einen Käfer am Boden in jeder Entfernung von 2 bis 8 Kacheln', () => {
+    for (let d = 2; d <= 8; d++) {
+      const s = armed(FLAT_ROWS);
+      const e = createEnemy({ kind: 'beetle', cx: 2 + d, cy: 5, index: 0 });
+      e.active = true;
+      e.body.vx = 0;
+      s.enemies.push(e);
+      const ev = runGame(s, [[{ action: true }, 1], [{}, 60]]);
+      expect([d, e.alive]).toEqual([d, false]);
+      expect(types(ev)).toContain('enemyDefeated');
+    }
   });
 });
