@@ -3,7 +3,7 @@ import { emptyHeld, InputSampler } from '../core/input-frame.ts';
 import type { Held, InputFrame } from '../core/types.ts';
 import type { Layout } from '../view/layout.ts';
 import { KeyboardSource } from './keyboard.ts';
-import { PointerTracker, resolveTouch, zoneAt } from './touch.ts';
+import { PointerTracker, type PointerEventInfo, resolveTouch, zoneAt } from './touch.ts';
 
 type ToGame = (cx: number, cy: number) => { x: number; y: number };
 
@@ -45,6 +45,8 @@ export class Controls {
   sample(): InputFrame { return this.sampler.sample(this.held()); }
   /** Tipp in Spielpixeln. Gibt eine Funktion zum Abmelden zurück. */
   onTap(cb: (x: number, y: number) => void): () => void { return this.pointers.onTap(cb); }
+  /** Rohe Zeigerereignisse (down/move/up) in Spielpixeln. Gibt eine Funktion zum Abmelden zurück. */
+  onPointer(cb: (e: PointerEventInfo) => void): () => void { return this.pointers.onPointer(cb); }
   /** Escape oder P. Gibt eine Funktion zum Abmelden zurück. */
   onPause(cb: () => void): () => void {
     this.pauseCbs.push(cb);

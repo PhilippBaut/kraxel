@@ -67,9 +67,13 @@ export class PointerBook {
   points(): TouchPoint[] { return [...this.pts.values()].map((p) => ({ ...p })); }
 }
 
+/** Rohes Zeigerereignis in Spielpixeln; cancel und lostpointercapture zählen als 'up'. */
+export interface PointerEventInfo { type: 'down' | 'move' | 'up'; id: number; x: number; y: number }
+
 export class PointerTracker {
   readonly book = new PointerBook();
   private tapCbs: ((x: number, y: number) => void)[] = [];
+  private pointerCbs: ((e: PointerEventInfo) => void)[] = [];
   private touchCbs: (() => void)[] = [];
   private readonly handlers: [string, (e: PointerEvent) => void][];
 
@@ -105,6 +109,11 @@ export class PointerTracker {
     this.tapCbs.push(cb);
     return () => { this.tapCbs = this.tapCbs.filter((c) => c !== cb); };
   }
+  /** Rohe Zeiger in Spielpixeln. Gibt eine Funktion zum Abmelden zurück. */
+  onPointer(cb: (e: PointerEventInfo) => void): () => void {
+    this.pointerCbs.push(cb);
+    return () => { this.pointerCbs = this.pointerCbs.filter((c) => c !== cb); };
+  }
   onFirstTouch(cb: () => void): void { this.touchCbs.push(cb); }
 
   dispose(): void {
@@ -121,12 +130,19 @@ export class PointerTracker {
     const g = this.toGame(e.clientX, e.clientY);
     this.book.down(e.pointerId, g.x, g.y, this.zoneFor(g.x, g.y));
     for (const cb of this.tapCbs) cb(g.x, g.y);
+    this.emitPointer('down', e.pointerId, g.x, g.y);
   }
   private onMove(e: PointerEvent): void {
     const g = this.toGame(e.clientX, e.clientY);
     this.book.move(e.pointerId, g.x, g.y);
+    this.emitPointer('move', e.pointerId, g.x, g.y);
   }
   private onUp(e: PointerEvent): void {
     this.book.up(e.pointerId);
+    const g = this.toGame(e.clientX, e.clientY);
+    this.emitPointer('up', e.pointerId, g.x, g.y);
+  }
+  private emitPointer(type: PointerEventInfo['type'], id: number, x: number, y: number): void {
+    for (const cb of this.pointerCbs) cb({ type, id, x, y });
   }
 }

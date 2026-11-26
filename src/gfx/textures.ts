@@ -7,9 +7,14 @@ import { buildGroundTileset } from './tiles.ts';
 import { buildBackgroundLayers } from './background.ts';
 import { drawDpad, drawRoundButton, type DirHeld } from './buttons.ts';
 import { ADVANCE, FONT5, GLYPH_H, GLYPH_W } from './font.ts';
+import { BASE_RADII, BUTTON_IDS, type ButtonId } from '../view/controls-config.ts';
 
-/** Knopfgrößen hochkant und quer (Radien wie im Layout, Task 8). */
-export const BUTTON_RADII = { dpad: [42, 32], jump: [28, 21], action: [16, 14] } as const;
+/** Grundradien hochkant und quer, abgeleitet aus den Layout-Grundradien. */
+export const BUTTON_RADII = {
+  dpad: [BASE_RADII.portrait.dpad.r, BASE_RADII.landscape.dpad.r],
+  jump: [BASE_RADII.portrait.jump.r, BASE_RADII.landscape.jump.r],
+  action: [BASE_RADII.portrait.action.r, BASE_RADII.landscape.action.r],
+} as const;
 
 const GROUND_TILES = new Set(['groundTop', 'groundFill']);
 const DIRS = ['left', 'right', 'up', 'down'] as const;
@@ -57,15 +62,30 @@ export function registerTextures(scene: Phaser.Scene, world: number): void {
   addCanvas(scene, 'bg-clouds', bg.clouds);
   addFont(scene, 'font-white', '#ffffff');
   addFont(scene, 'font-dark', DARK);
-  for (const r of BUTTON_RADII.dpad) {
+  for (const kind of BUTTON_IDS) for (const r of BUTTON_RADII[kind]) ensureButtonTextures(scene, kind, r);
+}
+
+function heldOfMask(mask: number): DirHeld {
+  return { left: !!(mask & 1), right: !!(mask & 2), up: !!(mask & 4), down: !!(mask & 8) };
+}
+
+/** Alle Schlüssel eines Knopfs für einen Radius: Steuerkreuz 16 Varianten, runde Knöpfe ruhend und gedrückt. */
+export function buttonTextureKeys(kind: ButtonId, r: number): string[] {
+  if (kind === 'dpad') return Array.from({ length: 16 }, (_, mask) => dpadKey(r, heldOfMask(mask)));
+  return [roundButtonKey(kind, r, false), roundButtonKey(kind, r, true)];
+}
+
+/** Backt fehlende Knopf-Texturen für diesen Radius, vorhandene bleiben. */
+export function ensureButtonTextures(scene: Phaser.Scene, kind: ButtonId, r: number): void {
+  if (kind === 'dpad') {
     for (let mask = 0; mask < 16; mask++) {
-      const held: DirHeld = { left: !!(mask & 1), right: !!(mask & 2), up: !!(mask & 4), down: !!(mask & 8) };
-      addCanvas(scene, dpadKey(r, held), drawDpad(r, held));
+      const held = heldOfMask(mask), key = dpadKey(r, held);
+      if (!scene.textures.exists(key)) addCanvas(scene, key, drawDpad(r, held));
     }
+    return;
   }
-  for (const kind of ['jump', 'action'] as const) {
-    for (const r of BUTTON_RADII[kind]) {
-      for (const pressed of [false, true]) addCanvas(scene, roundButtonKey(kind, r, pressed), drawRoundButton(r, kind, pressed));
-    }
+  for (const pressed of [false, true]) {
+    const key = roundButtonKey(kind, r, pressed);
+    if (!scene.textures.exists(key)) addCanvas(scene, key, drawRoundButton(r, kind, pressed));
   }
 }

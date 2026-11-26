@@ -10,6 +10,7 @@ import { PlayScene } from './scenes/PlayScene.ts';
 import { ResultScene } from './scenes/ResultScene.ts';
 import { TitleScene } from './scenes/TitleScene.ts';
 import { UiScene } from './scenes/UiScene.ts';
+import { loadControlsConfig, type ControlsConfig } from './view/controls-config.ts';
 import { computeLayout, readSafeInsets, type Layout } from './view/layout.ts';
 
 for (const type of ['gesturestart', 'dblclick', 'contextmenu']) {
@@ -29,8 +30,17 @@ function createAudioContext(): AudioContext | null {
 const parent = document.getElementById('game');
 if (!parent) throw new Error('#game fehlt');
 
-const measure = (): Layout => computeLayout(window.innerWidth, window.innerHeight, readSafeInsets());
-let layout = measure();
+let controlsConfig = loadControlsConfig(safeStorage());
+/** Standard-Anordnung (`layoutBase`) und angewendete Anordnung (`layout`) für die aktuelle Fenstergröße. */
+const measure = (): { base: Layout; layout: Layout } => {
+  const insets = readSafeInsets();
+  return {
+    base: computeLayout(window.innerWidth, window.innerHeight, insets),
+    layout: computeLayout(window.innerWidth, window.innerHeight, insets, controlsConfig),
+  };
+};
+const first = measure();
+let layout = first.layout;
 
 const game = new Phaser.Game({
   type: Phaser.WEBGL,
@@ -64,6 +74,8 @@ function toGame(clientX: number, clientY: number): { x: number; y: number } {
 const sfx = new Sfx(createAudioContext);
 sfx.setMuted(loadSave(safeStorage()).muted);
 game.registry.set('layout', layout);
+game.registry.set('layoutBase', first.base);
+game.registry.set('controlsConfig', controlsConfig);
 game.registry.set('controls', controls);
 game.registry.set('sfx', sfx);
 
@@ -74,10 +86,12 @@ for (const type of ['pointerdown', 'touchend', 'keydown']) {
 }
 controls.setLayout(layout, toGame);
 
-function applyLayout(): void {
-  const next = measure();
-  // Unverändert: nichts tun, sonst würden gehaltene Finger zurückgesetzt.
-  if (JSON.stringify(next) === JSON.stringify(layout)) return;
+function applyLayout(force = false): void {
+  const m = measure();
+  const next = m.layout;
+  game.registry.set('layoutBase', m.base);
+  // Unverändert: nichts tun, sonst würden gehaltene Finger zurückgesetzt. Neue Anordnung wirkt immer.
+  if (!force && JSON.stringify(next) === JSON.stringify(layout)) return;
   layout = next;
   game.registry.set('layout', layout);
   // Die Galerie legt ihre Größe selbst fest.
@@ -95,6 +109,12 @@ function queueLayout(): void {
     applyLayout();
   });
 }
+
+game.events.on('controls-config', (c: ControlsConfig) => {
+  controlsConfig = c;
+  game.registry.set('controlsConfig', c);
+  applyLayout(true);
+});
 
 window.addEventListener('resize', queueLayout);
 // iOS meldet Größe und Safe-Area nach einer Drehung oft verspätet: später noch einmal messen (ohne Änderung passiert nichts).

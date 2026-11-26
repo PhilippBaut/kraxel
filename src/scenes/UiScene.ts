@@ -5,7 +5,7 @@ import type { GameState } from '../core/game.ts';
 import { canvas2d } from '../gfx/bake.ts';
 import { GLYPH_H, textWidth } from '../gfx/font.ts';
 import { OutlinedText } from '../gfx/pixel-text.ts';
-import { BUTTON_RADII, dpadKey, roundButtonKey } from '../gfx/textures.ts';
+import { BUTTON_RADII, dpadKey, ensureButtonTextures, roundButtonKey } from '../gfx/textures.ts';
 import type { Controls } from '../input/controls.ts';
 import type { Circle, Layout } from '../view/layout.ts';
 import type { PauseScene } from './PauseScene.ts';
@@ -46,6 +46,8 @@ export class UiScene extends Phaser.Scene {
   private panelEdge!: Phaser.GameObjects.Graphics;
   private dpad!: Phaser.GameObjects.Image;
   private jump!: Phaser.GameObjects.Image;
+  /** Der Knopf-Editor blendet die Knöpfe aus, solange er offen ist. */
+  private editing = false;
   /** Ohne Touch bleiben die Knöpfe verborgen, bis der erste Finger den Bildschirm berührt. */
   private readonly touchDevice = navigator.maxTouchPoints > 0;
   private hud!: {
@@ -77,16 +79,19 @@ export class UiScene extends Phaser.Scene {
     };
     this.applyLayout(this.registry.get('layout') as Layout);
     const offTap = this.controls.onTap((x, y) => this.onTap(x, y));
+    const onEditing = (v: boolean): void => { this.editing = v; this.update(); };
     this.game.events.on('layout', this.applyLayout, this);
+    this.game.events.on('controls-editing', onEditing);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offTap();
       this.game.events.off('layout', this.applyLayout, this);
+      this.game.events.off('controls-editing', onEditing);
     });
   }
 
   update(): void {
     const held = this.controls.held(), l = this.layout;
-    const show = this.touchDevice || this.controls.touchSeen;
+    const show = (this.touchDevice || this.controls.touchSeen) && !this.editing;
     this.dpad.setVisible(show).setTexture(dpadKey(l.dpad.r, held));
     this.jump.setVisible(show).setTexture(roundButtonKey('jump', l.jump.r, held.jump));
     this.updateHud();
@@ -147,6 +152,9 @@ export class UiScene extends Phaser.Scene {
       this.panelEdge.fillStyle(EDGE_LIGHT).fillRect(p.x, p.y, p.w, 1);
       this.panelEdge.fillStyle(EDGE_DARK).fillRect(p.x, p.y + 1, p.w, 1);
     }
+    ensureButtonTextures(this, 'dpad', l.dpad.r);
+    ensureButtonTextures(this, 'jump', l.jump.r);
+    ensureButtonTextures(this, 'action', l.action.r);
     const alpha = l.orientation === 'portrait' ? 1 : l.controlsAlpha;
     placeButton(this.dpad, l.dpad, alpha);
     placeButton(this.jump, l.jump, alpha);
