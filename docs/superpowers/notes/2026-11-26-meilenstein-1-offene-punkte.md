@@ -4,14 +4,8 @@ Meilenstein 1 ist fertig, online und vom Repo-Inhaber am Handy getestet („echt
 
 ## Wartet auf den Repo-Inhaber
 
-- **Knopf-Editor (eigener Wunsch vom 24.11.):** Der Entwurf liegt vor, die Freigabe fehlt noch.
-  - Erreichbar unter „STEUERUNG“ im Pausenmenü und auf dem Titelbild.
-  - Bearbeitet wird die Ansicht, in der man das Handy gerade hält.
-  - Knöpfe lassen sich ziehen. Antippen und −/+ ändert die Größe (75–150 %).
-  - Hochkant bleiben die Knöpfe im Steuerfeld unter der Info-Zeile. Quer dürfen sie überall in die Safe Area außer auf Info-Leiste und Pause.
-  - Knöpfe dürfen sich nicht überlappen.
-  - „STANDARD“ setzt zurück, „FERTIG“ speichert. Gespeichert wird getrennt für hochkant und quer.
-  - Die Trefferregel (nächster Knopfrand gewinnt) bleibt.
+- **Knopf-Editor:** gebaut und online seit 26.11.2026 (Plan `docs/superpowers/plans/2026-11-26-knopf-editor.md`). Wartet auf den Handy-Test. Prüfen: quer Sprung auf Maximum → FERTIG → App ganz schließen → wieder öffnen (Anordnung bleibt); −/+ mehrfach mit dem Daumen; Drehen und App-Wechsel mitten im Ziehen; Knopf nahe der Home-Leiste; zweiter Finger beim Ziehen; ob die Werkzeugleiste hochkant über dem (abgedunkelten) Spielbild so passt.
+  Zurückgestellt: Knopf gleitet bei abgelehnter Bewegung nicht bis zum Hindernis; Knopf unter einem Werkzeug-Knopf löst quer das Werkzeug aus; zweiter Finger bricht Ziehen ab; Rückgängig/Abbrechen gibt es nicht (Escape speichert wie FERTIG).
 - **Ton-Sitzung:** `navigator.audioSession.type = 'playback'` lässt den Ton auch bei Stummschalter laufen, stoppt aber vermutlich Musik aus anderen Apps. Die Alternative `'ambient'` mischt sich mit der Musik, ist bei Stummschalter aber still.
 - **Klänge:** Prüfen, ob Sprung, Helm (`powerUp`) oder die Ziel-Fanfare (G4 G4 C5 G4 E5 G5) an Mario erinnern.
 - **Text:** „GAME OVER“ auf Englisch lassen oder durch „SPIEL VORBEI“ ersetzen?
