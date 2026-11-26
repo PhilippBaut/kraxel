@@ -11,6 +11,8 @@ import { createPlayer, stepPlayer } from './player.ts';
 import type { PlayerState } from './player.ts';
 import { collectPickups, createPickup, stepPickups } from './pickups.ts';
 import type { PickupState } from './pickups.ts';
+import { shoot, stepPebbles } from './pebbles.ts';
+import type { Pebble } from './pebbles.ts';
 import { jumpGravity } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
 import { Cell } from './types.ts';
@@ -29,6 +31,8 @@ export interface GameState {
   startHelm: boolean;
   /** Spezial-Item beim Levelstart; `restartLevel` stellt es wieder her. */
   startSpecial: SpecialItem | null;
+  /** Fliegende Kiesel der Schleuder und die Abklingzeit bis zum nächsten Schuss. */
+  pebbles: Pebble[]; pebbleCooldown: number;
 }
 const HURT_ANIM_TIME = 0.3;
 /** Das Gipfelkreuz ist 5 Kacheln hoch; so hoch reicht auch die Zielzone. */
@@ -66,7 +70,7 @@ export function createGame(level: LevelData, session: Session = createSession(),
     level, grid: TileGrid.fromLevel(level), crates: new Map(level.crates), multi: new Map(),
     player: createPlayer(level.start.cx, level.start.cy),
     pickups: initialPickups(level, session), enemies: initialEnemies(level),
-    playerPrevBottom: 0,
+    playerPrevBottom: 0, pebbles: [], pebbleCooldown: 0,
     checkpoint: -1, phase: 'playing', phaseTimer: 0, session, startSession: copySession(session),
     startHelm: opts.helm === true || (opts.special ?? null) !== null, startSpecial: opts.special ?? null,
   };
@@ -109,6 +113,8 @@ export function respawn(s: GameState): void {
   s.multi = new Map();
   s.pickups = initialPickups(level, s.session);
   s.enemies = initialEnemies(level);
+  s.pebbles = [];
+  s.pebbleCooldown = 0;
   const cp = level.spawns.find((sp) => sp.kind === 'checkpoint' && sp.index === s.checkpoint);
   s.player = cp ? createPlayer(cp.cx, cp.cy) : createPlayer(level.start.cx, level.start.cy);
   s.playerPrevBottom = s.player.body.y + s.player.body.h;
@@ -258,6 +264,8 @@ export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewW
   events.push(...stepEnzian(s, t, dt));
   stepPickups(s.pickups, s.grid, dt);
   stepEnemies(s.enemies, s.grid, view, dt);
+  if (input.actionPressed) events.push(...shoot(s));
+  events.push(...stepPebbles(s, dt));
   events.push(...resolvePlayerEnemies(s, input, t));
   if (s.phase !== 'playing') return events; // gestorben: nichts mehr einsammeln
   events.push(...collectPickups(s));

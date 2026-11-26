@@ -64,7 +64,7 @@ export function stepEnemies(list: EnemyState[], grid: TileGrid, view: ViewWindow
   }
 }
 
-function defeat(e: EnemyState, events: GameEvent[]): void {
+export function defeat(e: EnemyState, events: GameEvent[]): void {
   e.alive = false;
   e.defeatTimer = DEFEAT_TIME;
   events.push({ type: 'enemyDefeated', x: e.body.x + e.body.w / 2, y: e.body.y + e.body.h / 2 });

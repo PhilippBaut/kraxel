@@ -25,6 +25,7 @@ export type GameEvent =
   | { type: 'crystal'; x: number; y: number; fromCrate: boolean }
   | { type: 'itemSpawn'; item: ItemKind; cx: number; cy: number } | { type: 'powerUp'; item: ItemKind }
   | { type: 'stomp'; x: number; y: number } | { type: 'enemyDefeated'; x: number; y: number }
+  | { type: 'shoot' } | { type: 'pebblePop'; x: number; y: number }
   | { type: 'enzianStart' } | { type: 'enzianEnd' }
   | { type: 'hurt' } | { type: 'death' } | { type: 'respawn' } | { type: 'gameOver' }
   | { type: 'checkpoint'; index: number } | { type: 'edelweiss'; index: number }
