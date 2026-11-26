@@ -81,6 +81,7 @@ export class PauseScene extends Phaser.Scene {
   private applyLayout(l: Layout): void {
     this.cameras.main.setSize(l.gameW, l.gameH);
     const v = l.view, m = this.menu;
+    m.setLayout(l, PAD + GLYPH_H + TITLE_GAP + PAD);
     const w = m.width + 2 * PAD, h = PAD + GLYPH_H + TITLE_GAP + m.height + PAD;
     const x = v.x + Math.floor((v.w - w) / 2), y = v.y + Math.floor((v.h - h) / 2);
     this.bg.clear();

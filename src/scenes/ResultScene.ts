@@ -110,6 +110,7 @@ export class ResultScene extends Phaser.Scene {
   private applyLayout(l: Layout): void {
     this.cameras.main.setSize(l.gameW, l.gameH);
     const v = l.view, m = this.menu;
+    m.setLayout(l, PAD + this.contentH + PAD);
     const w = Math.max(CONTENT_W, m.width) + 2 * PAD, h = PAD + this.contentH + m.height + PAD;
     const x = v.x + Math.floor((v.w - w) / 2), y = v.y + Math.floor((v.h - h) / 2);
     this.bg.clear();

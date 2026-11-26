@@ -6,6 +6,9 @@ import type { Rect } from '../core/types.ts';
 import { textWidth } from '../gfx/font.ts';
 import { OutlinedText } from '../gfx/pixel-text.ts';
 import type { Controls } from '../input/controls.ts';
+import { GLYPH_H } from '../gfx/font.ts';
+import type { Layout } from '../view/layout.ts';
+import { fitButtonHeight, MIN_BUTTON_H } from '../view/thumb.ts';
 
 export interface MenuItem {
   /** Wird bei jedem Neuzeichnen gelesen, so kann sich die Beschriftung ändern (TON: AN/AUS). */
@@ -13,7 +16,8 @@ export interface MenuItem {
   run: () => void;
 }
 
-export const BUTTON_H = 15;
+/** Kleinste Knopfhöhe; die echte Höhe kommt aus `setLayout` (daumengroß). */
+export const BUTTON_H = MIN_BUTTON_H;
 const BUTTON_GAP = 4, MIN_W = 88, PAD_X = 8;
 /** Farben wie Steuerkreuz und Sprungknopf im Entwurf. */
 export const EDGE = 0x16112a, FILL = 0x5b4f80, FILL_HI = 0x8478b0, SEL = 0x2ec4b6, SEL_HI = 0xa6f5e9;
@@ -51,6 +55,9 @@ export class Menu {
   private readonly gfx: Phaser.GameObjects.Graphics;
   private readonly labels: OutlinedText[];
   private rects: Rect[] = [];
+  /** Trefferflächen: bis zur Mitte der Lücke, überlappen sich nicht. */
+  private hits: Rect[] = [];
+  private buttonH = BUTTON_H;
   private x = 0;
   private y = 0;
   private selected = 0;
@@ -79,7 +86,12 @@ export class Menu {
   }
 
   get height(): number {
-    return this.items.length * BUTTON_H + (this.items.length - 1) * BUTTON_GAP;
+    return this.items.length * this.buttonH + (this.items.length - 1) * BUTTON_GAP;
+  }
+
+  /** Knopfhöhe nach Bildschirm (etwa 44 CSS-px), so klein wie nötig, damit `reservedH` (Rest der Tafel) plus Knöpfe ins Bild passt. */
+  setLayout(l: Layout, reservedH: number): void {
+    this.buttonH = fitButtonHeight(l, this.items.length, BUTTON_GAP, reservedH);
   }
 
   /** Linke obere Ecke der Liste. */
@@ -111,7 +123,7 @@ export class Menu {
   private tap(x: number, y: number): void {
     // Schläft die Szene (Knopf-Editor offen), reagiert das Menü nicht.
     if (this.locked || !this.scene.scene.isActive()) return;
-    const i = this.rects.findIndex((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
+    const i = this.hits.findIndex((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
     if (i < 0) return;
     // Liegt der Knopf über einer Steuerzone, hat derselbe Finger gerade „Sprung“ gedrückt: diese Flanke schlucken.
     this.swallow();
@@ -133,13 +145,15 @@ export class Menu {
   private draw(): void {
     const w = this.width, g = this.gfx;
     g.clear();
+    const half = Math.floor(BUTTON_GAP / 2);
     this.rects = this.items.map((it, i) => {
-      const r = { x: this.x, y: this.y + i * (BUTTON_H + BUTTON_GAP), w, h: BUTTON_H };
+      const r = { x: this.x, y: this.y + i * (this.buttonH + BUTTON_GAP), w, h: this.buttonH };
       const sel = i === this.selected;
       drawButton(g, r, sel);
       const label = this.labels[i]!.setText(it.label());
-      label.setPosition(r.x + Math.floor((r.w - label.width) / 2), r.y + 4);
+      label.setPosition(r.x + Math.floor((r.w - label.width) / 2), r.y + Math.floor((r.h - GLYPH_H) / 2));
       return r;
     });
+    this.hits = this.rects.map((r) => ({ x: r.x, y: r.y - half, w: r.w, h: r.h + 2 * half }));
   }
 }

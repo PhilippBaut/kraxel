@@ -16,6 +16,7 @@ import {
   saveControlsConfig, SCALE_MAX, SCALE_MIN, SCALE_STEP, withOrientation, type ButtonId, type ControlsConfig,
 } from '../view/controls-config.ts';
 import type { Circle, Layout } from '../view/layout.ts';
+import { thumbHeight } from '../view/thumb.ts';
 import { BUTTON_H, dim, drawButton, drawPanel, SEL, SEL_HI } from './menu.ts';
 
 type ReturnTo = 'pause' | 'title';
@@ -26,8 +27,6 @@ const NONE = { left: false, right: false, up: false, down: false };
 const PAD = 6, GAP = 6, ROW_GAP = 4;
 /** Luft zwischen `+` und STANDARD: ein Fehltipp setzt sonst die ganze Ansicht zurück. */
 const SEP_GAP = 14;
-/** Ziel für Werkzeug-Knöpfe: etwa 44 CSS-px (Daumen), begrenzt je Ansicht, damit die Leiste ins Bild passt. */
-const TOOL_CSS_PX = 44, TOOL_H_MAX = { portrait: 32, landscape: 24 } as const;
 /** Trefferfläche über und unter dem gezeichneten Knopf. */
 const HIT_PAD_Y = 4;
 /** Auswahl-Ring um den gewählten Knopf. */
@@ -223,7 +222,7 @@ export class ControlsScene extends Phaser.Scene {
 
   /** Hochkant im Spielbild, quer oben mittig unter der Info-Leiste. Knopfhöhe nach Bildschirm: etwa 44 CSS-px. */
   private layoutBar(l: Layout): void {
-    const toolH = clamp(Math.ceil(TOOL_CSS_PX / l.scale), BUTTON_H, TOOL_H_MAX[l.orientation]);
+    const toolH = thumbHeight(l);
     const widths = [toolH, toolH, textWidth(TEXT.DEFAULTS) + 16, textWidth(TEXT.DONE) + 16];
     const gaps = [GAP, SEP_GAP, GAP]; // zwischen den Knöpfen
     const rowW = widths.reduce((a, b) => a + b, 0) + gaps.reduce((a, b) => a + b, 0);
@@ -258,10 +257,6 @@ export class ControlsScene extends Phaser.Scene {
       bx += bw + (gaps[i] ?? 0);
     });
   }
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
 }
 
 function inside(r: Rect, x: number, y: number): boolean {
