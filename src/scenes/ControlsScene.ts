@@ -1,5 +1,5 @@
 // Knopf-Editor: Steuerkreuz, Sprung- und Aktionsknopf ziehen und in der Größe ändern.
-// Öffnet über dem Pausenmenü oder dem Titelbild; die Rückkehr-Szene schläft, solange er offen ist.
+// Öffnet über dem Pausenmenü (das schläft) oder dem Titelbild (das pausiert und bleibt sichtbar).
 import Phaser from 'phaser';
 import type { Sfx } from '../audio/sfx.ts';
 import { safeStorage } from '../core/save.ts';
@@ -12,18 +12,24 @@ import type { Controls } from '../input/controls.ts';
 import type { PointerEventInfo } from '../input/touch.ts';
 import { TEXT } from '../ui-text.ts';
 import {
-  applyControls, BUTTON_IDS, configFromLayout, moveButton, pickButton, resizeButton,
-  saveControlsConfig, SCALE_STEP, withOrientation, type ButtonId, type ControlsConfig,
+  applyControls, BUTTON_IDS, circleHitsRect, configFromLayout, moveButton, pickButton, resizeButton,
+  saveControlsConfig, SCALE_MAX, SCALE_MIN, SCALE_STEP, withOrientation, type ButtonId, type ControlsConfig,
 } from '../view/controls-config.ts';
 import type { Circle, Layout } from '../view/layout.ts';
-import { BUTTON_H, dim, drawPanel, EDGE, FILL, FILL_HI, SEL, SEL_HI } from './menu.ts';
+import { BUTTON_H, dim, drawButton, drawPanel, SEL, SEL_HI } from './menu.ts';
 
 type ReturnTo = 'pause' | 'title';
-interface Tool { label: string; rect: Rect; run: () => void }
+/** `rect` ist der gezeichnete Knopf, `hit` die Trefferfläche (größer, damit der Daumen reicht). */
+interface Tool { label: string; rect: Rect; hit: Rect; run: () => void }
 
 const NONE = { left: false, right: false, up: false, down: false };
-const PAD = 6, GAP = 4, ROW_GAP = 4;
-const SQUARE_W = 18;
+const PAD = 6, GAP = 6, ROW_GAP = 4;
+/** Luft zwischen `+` und STANDARD: ein Fehltipp setzt sonst die ganze Ansicht zurück. */
+const SEP_GAP = 14;
+/** Ziel für Werkzeug-Knöpfe: etwa 44 CSS-px (Daumen), begrenzt je Ansicht, damit die Leiste ins Bild passt. */
+const TOOL_CSS_PX = 44, TOOL_H_MAX = { portrait: 32, landscape: 24 } as const;
+/** Trefferfläche über und unter dem gezeichneten Knopf. */
+const HIT_PAD_Y = 4;
 /** Auswahl-Ring um den gewählten Knopf. */
 const RING_GAP = 3;
 const AREA_LINE = 0x4a3d6b;
@@ -85,7 +91,8 @@ export class ControlsScene extends Phaser.Scene {
       { label: TEXT.DEFAULTS, run: () => this.reset() },
       { label: TEXT.DONE, run: () => this.close() },
     ];
-    this.tools = defs.map((d) => ({ ...d, rect: { x: 0, y: 0, w: 0, h: BUTTON_H } }));
+    const none = { x: 0, y: 0, w: 0, h: BUTTON_H };
+    this.tools = defs.map((d) => ({ ...d, rect: none, hit: none }));
     this.toolLabels = defs.map((d) => new OutlinedText(this, 0, 0, d.label));
 
     this.refresh(this.registry.get('layoutBase') as Layout);
@@ -123,10 +130,14 @@ export class ControlsScene extends Phaser.Scene {
   private step(delta: number): void {
     const id = this.sel ?? 'jump';
     this.sel = id;
-    const scale = Math.round(configFromLayout(this.cur)[id].scale / SCALE_STEP) * SCALE_STEP;
-    const next = resizeButton(this.cur, id, scale + delta);
+    const target = configFromLayout(this.cur)[id].scale + delta;
+    // Schon am kleinsten/größten Maß oder abgelehnt (Überlappung): kurzes Brummen statt Stille.
+    const next = target < SCALE_MIN - 1e-9 || target > SCALE_MAX + 1e-9 ? null : resizeButton(this.cur, id, target);
     if (next) this.commit(next);
-    else this.render();
+    else {
+      this.sfx.play('bump');
+      this.render();
+    }
   }
 
   private reset(): void {
@@ -142,7 +153,8 @@ export class ControlsScene extends Phaser.Scene {
     this.game.events.emit('controls-config', this.work);
     this.game.events.emit('controls-editing', false);
     this.controls.sample(); // Flanken von Tipp oder Taste schlucken
-    this.scene.wake(this.returnTo);
+    if (this.returnTo === 'title') this.scene.resume('title');
+    else this.scene.wake(this.returnTo);
     this.scene.stop();
   }
 
@@ -152,7 +164,7 @@ export class ControlsScene extends Phaser.Scene {
     if (this.closing) return;
     if (e.type === 'down') {
       this.drag = null; // ein altes Ziehen ohne 'up' (z. B. nach Fokusverlust) verfällt
-      const tool = this.tools.find((t) => inside(t.rect, e.x, e.y));
+      const tool = this.tools.find((t) => inside(t.hit, e.x, e.y));
       if (tool) {
         this.sfx.play('select');
         tool.run();
@@ -209,42 +221,47 @@ export class ControlsScene extends Phaser.Scene {
     this.ring.lineStyle(1, SEL).strokeCircle(c.cx, c.cy, c.r + RING_GAP + 1.5);
   }
 
-  /** Hochkant im Spielbild, quer oben mittig unter der Info-Leiste. */
+  /** Hochkant im Spielbild, quer oben mittig unter der Info-Leiste. Knopfhöhe nach Bildschirm: etwa 44 CSS-px. */
   private layoutBar(l: Layout): void {
-    const widths = [SQUARE_W, SQUARE_W, textWidth(TEXT.DEFAULTS) + 16, textWidth(TEXT.DONE) + 16];
-    const rowW = widths.reduce((a, b) => a + b, 0) + GAP * (widths.length - 1);
+    const toolH = clamp(Math.ceil(TOOL_CSS_PX / l.scale), BUTTON_H, TOOL_H_MAX[l.orientation]);
+    const widths = [toolH, toolH, textWidth(TEXT.DEFAULTS) + 16, textWidth(TEXT.DONE) + 16];
+    const gaps = [GAP, SEP_GAP, GAP]; // zwischen den Knöpfen
+    const rowW = widths.reduce((a, b) => a + b, 0) + gaps.reduce((a, b) => a + b, 0);
     const w = Math.max(rowW, textWidth(TEXT.CONTROLS_HINT)) + 2 * PAD;
-    const h = PAD + GLYPH_H + ROW_GAP + GLYPH_H + ROW_GAP + 2 + BUTTON_H + PAD;
+    const h = PAD + GLYPH_H + ROW_GAP + GLYPH_H + ROW_GAP + 2 + toolH + PAD;
     const v = l.view;
     const x = v.x + Math.floor((v.w - w) / 2);
     const y = l.orientation === 'portrait' ? v.y + Math.floor((v.h - h) / 2) : l.hud.y + l.hud.h + 3;
     // Verdeckt die Leiste einen Knopf (ganz oder teils), wird sie durchscheinend.
-    const covers = BUTTON_IDS.some((id) => {
-      const c = l[id];
-      const nx = Math.max(x, Math.min(c.cx, x + w)), ny = Math.max(y, Math.min(c.cy, y + h));
-      return Math.hypot(c.cx - nx, c.cy - ny) < c.r;
-    });
+    const bar: Rect = { x, y, w, h };
+    const covers = BUTTON_IDS.some((id) => circleHitsRect(bar, l[id]));
     const a = covers ? 0.55 : 1;
     this.bar.setAlpha(a);
     this.title.setAlpha(a);
     this.hint.setAlpha(a);
     for (const t of this.toolLabels) t.setAlpha(a);
     this.bar.clear();
-    drawPanel(this.bar, { x, y, w, h });
+    drawPanel(this.bar, bar);
     this.title.setPosition(x + Math.floor((w - this.title.width) / 2), y + PAD);
     this.hint.setPosition(x + Math.floor((w - this.hint.width) / 2), y + PAD + GLYPH_H + ROW_GAP);
     let bx = x + Math.floor((w - rowW) / 2);
-    const by = y + h - PAD - BUTTON_H;
+    const by = y + h - PAD - toolH;
     this.tools.forEach((t, i) => {
-      t.rect = { x: bx, y: by, w: widths[i]!, h: BUTTON_H };
-      this.bar.fillStyle(EDGE).fillRect(bx - 1, by - 1, t.rect.w + 2, BUTTON_H + 2);
-      this.bar.fillStyle(FILL).fillRect(bx, by, t.rect.w, BUTTON_H);
-      this.bar.fillStyle(FILL_HI).fillRect(bx, by, t.rect.w, 1);
+      const bw = widths[i]!;
+      t.rect = { x: bx, y: by, w: bw, h: toolH };
+      // Trefferfläche: seitlich bis zur Mitte der Lücke, oben und unten ein Stück mehr.
+      const left = i === 0 ? GAP / 2 : gaps[i - 1]! / 2, right = i === gaps.length ? GAP / 2 : gaps[i]! / 2;
+      t.hit = { x: bx - left, y: by - HIT_PAD_Y, w: bw + left + right, h: toolH + 2 * HIT_PAD_Y };
+      drawButton(this.bar, t.rect);
       const label = this.toolLabels[i]!;
-      label.setPosition(bx + Math.floor((t.rect.w - label.width) / 2), by + 4);
-      bx += t.rect.w + GAP;
+      label.setPosition(bx + Math.floor((bw - label.width) / 2), by + Math.floor((toolH - GLYPH_H) / 2));
+      bx += bw + (gaps[i] ?? 0);
     });
   }
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
 }
 
 function inside(r: Rect, x: number, y: number): boolean {

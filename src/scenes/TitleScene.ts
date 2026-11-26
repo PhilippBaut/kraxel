@@ -10,7 +10,7 @@ import { isShortcut } from '../input/keyboard.ts';
 import { START_LEVEL } from '../levels/index.ts';
 import { TEXT } from '../ui-text.ts';
 import type { Rect } from '../core/types.ts';
-import { BUTTON_H, EDGE, FILL, FILL_HI } from './menu.ts';
+import { BUTTON_H, drawButton } from './menu.ts';
 import type { Layout } from '../view/layout.ts';
 
 /** Dieselben Ebenen wie im Spiel; die Wolken ziehen. */
@@ -31,6 +31,8 @@ const WALK_FRAMES = ['kraxel', 'kraxelB'] as const;
 const WALK_FPS = 8, WALK_SPEED = 40, KRAXEL_W = 16;
 /** Hochkant liegt der Boden bei diesem Anteil der Höhe. */
 const PORTRAIT_GROUND = 0.7;
+/** Spielraum um den STEUERUNG-Knopf: knapp daneben tippen startet nicht das Spiel. */
+const CONTROLS_SLOP_X = 6, CONTROLS_SLOP_Y = 8;
 
 /** iOS im Browser (nicht vom Home-Bildschirm gestartet): dort gibt es Vollbild nur über „Zum Home-Bildschirm“. */
 function isIosBrowser(): boolean {
@@ -104,14 +106,14 @@ export class TitleScene extends Phaser.Scene {
 
   /** Tipp auf STEUERUNG öffnet den Editor, jeder andere Tipp startet das Spiel. */
   private onTap(x: number, y: number): void {
-    if (!this.scene.isActive() || this.starting) return; // schläft, solange der Editor offen ist
-    const r = this.controlsBtn.rect, m = 2;
-    if (x >= r.x - m && x < r.x + r.w + m && y >= r.y - m && y < r.y + r.h + m) {
+    if (!this.scene.isActive() || this.starting) return; // pausiert, solange der Editor offen ist (isActive ist dann false)
+    const r = this.controlsBtn.rect;
+    if (x >= r.x - CONTROLS_SLOP_X && x < r.x + r.w + CONTROLS_SLOP_X && y >= r.y - CONTROLS_SLOP_Y && y < r.y + r.h + CONTROLS_SLOP_Y) {
       this.sfx.unlock();
       this.sfx.play('select');
       this.controls.sample();
       this.scene.launch('controls', { returnTo: 'title' });
-      this.scene.sleep();
+      this.scene.pause(); // bleibt sichtbar (gedimmt) hinter dem Editor
       return;
     }
     this.startGame();
@@ -152,9 +154,7 @@ export class TitleScene extends Phaser.Scene {
     b.rect = { x: Math.floor((l.gameW - w) / 2), y: l.controlsArea.y + l.controlsArea.h - BUTTON_H - 4, w, h: BUTTON_H };
     const r = b.rect;
     b.gfx.clear();
-    b.gfx.fillStyle(EDGE).fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
-    b.gfx.fillStyle(FILL).fillRect(r.x, r.y, r.w, r.h);
-    b.gfx.fillStyle(FILL_HI).fillRect(r.x, r.y, r.w, 1);
+    drawButton(b.gfx, r);
     b.label.setPosition(r.x + Math.floor((r.w - b.label.width) / 2), r.y + 4);
   }
 }

@@ -27,6 +27,13 @@ export function dim(g: Phaser.GameObjects.Graphics, r: Rect): void {
   g.fillStyle(DIM, DIM_ALPHA).fillRect(r.x, r.y, r.w, r.h);
 }
 
+/** Knopf: dunkler Rand, Füllung, helle Kante oben; gewählt in Türkis. */
+export function drawButton(g: Phaser.GameObjects.Graphics, r: Rect, selected = false): void {
+  g.fillStyle(EDGE).fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
+  g.fillStyle(selected ? SEL : FILL).fillRect(r.x, r.y, r.w, r.h);
+  g.fillStyle(selected ? SEL_HI : FILL_HI).fillRect(r.x, r.y, r.w, 1);
+}
+
 /** Tafel mit dunklem Rand, heller Kante oben und dunkler Kante unten. */
 export function drawPanel(g: Phaser.GameObjects.Graphics, r: Rect): void {
   g.fillStyle(EDGE).fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
@@ -129,9 +136,7 @@ export class Menu {
     this.rects = this.items.map((it, i) => {
       const r = { x: this.x, y: this.y + i * (BUTTON_H + BUTTON_GAP), w, h: BUTTON_H };
       const sel = i === this.selected;
-      g.fillStyle(EDGE).fillRect(r.x - 1, r.y - 1, r.w + 2, r.h + 2);
-      g.fillStyle(sel ? SEL : FILL).fillRect(r.x, r.y, r.w, r.h);
-      g.fillStyle(sel ? SEL_HI : FILL_HI).fillRect(r.x, r.y, r.w, 1);
+      drawButton(g, r, sel);
       const label = this.labels[i]!.setText(it.label());
       label.setPosition(r.x + Math.floor((r.w - label.width) / 2), r.y + 4);
       return r;
