@@ -1,7 +1,8 @@
 // Galerie zum Prüfen aller Grafiken (`?galerie`): jedes Sprite doppelt groß mit Namen,
-// Kraxel mit Mütze und Helm, Knöpfe, Schriftprobe und Hintergrund mit Bodenkacheln.
+// Kraxel mit Mütze und Helm, Kartenbilder, Knöpfe, Schriftprobe und Hintergrund mit Bodenkacheln.
 import Phaser from 'phaser';
 import { buildSprites, KRAXEL_FRAMES, helmName } from '../gfx/sprites.ts';
+import { MAP_SPRITE_NAMES } from '../gfx/map-tiles.ts';
 import { PixelText } from '../gfx/pixel-text.ts';
 import { FONT5, GLYPH_H, textWidth } from '../gfx/font.ts';
 import { DARK } from '../gfx/palette.ts';
@@ -51,7 +52,7 @@ export class GalleryScene extends Phaser.Scene {
   /** Übrige Sprites im Fluss, das hohe Gipfelkreuz rechts daneben. */
   private spriteFlow(top: number): number {
     const kraxel = new Set<string>([...KRAXEL_FRAMES, ...KRAXEL_FRAMES.map(helmName)]);
-    const names = Object.keys(buildSprites()).filter((n) => !kraxel.has(n) && n !== 'cross' && n !== 'crossGold');
+    const names = [...Object.keys(buildSprites()).filter((n) => !kraxel.has(n) && n !== 'cross' && n !== 'crossGold'), ...MAP_SPRITE_NAMES];
     const right = W - 96;
     let x = PAD, y = top, rowH = 0;
     for (const n of names) {

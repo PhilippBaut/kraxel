@@ -61,7 +61,7 @@ export class PlayScene extends Phaser.Scene {
   }
 
   /** Ohne Angabe oder mit unbekanntem Level (z. B. Tippfehler in `?level=`) startet START_LEVEL. */
-  init(data?: { levelId?: string }): void {
+  init(data?: { levelId?: string; fromMap?: boolean }): void {
     const id = data?.levelId;
     if (id !== undefined && LEVELS[id] === undefined) console.warn(`Unbekanntes Level "${id}", starte "${START_LEVEL}".`);
     this.levelId = id !== undefined && LEVELS[id] !== undefined ? id : START_LEVEL;
@@ -71,6 +71,8 @@ export class PlayScene extends Phaser.Scene {
     const text = LEVELS[this.levelId];
     if (text === undefined) throw new Error(`Unbekanntes Level "${this.levelId}"`);
     this.state = createGame(parseLevel(this.levelId, text));
+    this.registry.set('uiMode', 'play');
+    this.game.events.emit('ui-mode', 'play');
     this.controls = this.registry.get('controls') as Controls;
     this.sfx = this.registry.get('sfx') as Sfx;
     const { level } = this.state;
@@ -139,6 +141,17 @@ export class PlayScene extends Phaser.Scene {
       if (this.scene.isActive(key) || this.scene.isPaused(key)) this.scene.stop(key);
     }
     this.scene.start('title');
+  }
+
+  /** Zurück zur Karte (Pause: ZUR KARTE). Die Info-Leiste bleibt; Task 5 ergänzt Leben, Kristalle und Helm der Runde. */
+  goToMap(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    this.saveEdelweiss();
+    for (const key of ['pause', 'result']) {
+      if (this.scene.isActive(key) || this.scene.isPaused(key)) this.scene.stop(key);
+    }
+    this.scene.start('map', { arriveAt: this.levelId });
   }
 
   private readonly onVisibility = (): void => {

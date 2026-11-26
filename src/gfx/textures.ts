@@ -1,6 +1,7 @@
 // Backt alle Grafiken in Phaser-Texturen.
 import type Phaser from 'phaser';
 import { buildSprites } from './sprites.ts';
+import { buildMapSprites } from './map-tiles.ts';
 import { bakeGrid, toCanvas, canvas2d } from './bake.ts';
 import { BASE, DARK, WORLDS } from './palette.ts';
 import { buildGroundTileset } from './tiles.ts';
@@ -54,6 +55,7 @@ export function registerTextures(scene: Phaser.Scene, world: number): void {
   for (const [name, g] of Object.entries(buildSprites())) {
     addCanvas(scene, name, toCanvas(bakeGrid(g, GROUND_TILES.has(name) ? tilePal : BASE)));
   }
+  for (const [name, g] of Object.entries(buildMapSprites())) addCanvas(scene, name, toCanvas(bakeGrid(g, BASE)));
   addCanvas(scene, `tiles-w${world}`, toCanvas(bakeGrid(buildGroundTileset(w), tilePal)));
   const bg = buildBackgroundLayers(w);
   addCanvas(scene, 'bg-sky', bg.sky);

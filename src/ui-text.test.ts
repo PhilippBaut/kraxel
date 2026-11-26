@@ -18,4 +18,9 @@ describe('Texte des Knopf-Editors', () => {
     const all = [TEXT.CONTROLS, TEXT.CONTROLS_HINT, TEXT.DEFAULTS, TEXT.DONE, '-+'].join('');
     expect(missingGlyphs(all)).toEqual([]);
   });
+
+  it('Karten-Texte: großgeschrieben, ohne ß, Pixelschrift kann alles', () => {
+    expect([TEXT.TO_MAP, TEXT.TO_TITLE, TEXT.COMING_SOON, TEXT.NO_TIME]).toEqual(['ZUR KARTE', 'TITEL', 'FORTSETZUNG FOLGT', '-:--']);
+    expect(missingGlyphs([TEXT.TO_MAP, TEXT.TO_TITLE, TEXT.COMING_SOON, TEXT.NO_TIME].join(''))).toEqual([]);
+  });
 });

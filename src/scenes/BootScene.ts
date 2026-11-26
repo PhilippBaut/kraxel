@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { registerTextures } from '../gfx/textures.ts';
 
-/** Startet das Titelbild. Mit `?level=` geht es direkt ins Spiel, mit `?galerie` in die Galerie. */
+/** Startet das Titelbild. Mit `?level=` geht es direkt ins Spiel, mit `?map` auf die Weltkarte, mit `?galerie` in die Galerie. */
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('boot');
@@ -12,6 +12,11 @@ export class BootScene extends Phaser.Scene {
     const params = new URLSearchParams(window.location.search);
     if (params.has('galerie')) {
       this.scene.start('gallery');
+      return;
+    }
+    if (params.has('map')) {
+      this.scene.start('map');
+      this.scene.launch('ui');
       return;
     }
     const level = params.get('level');

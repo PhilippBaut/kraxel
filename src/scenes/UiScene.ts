@@ -8,6 +8,7 @@ import { OutlinedText } from '../gfx/pixel-text.ts';
 import { BUTTON_RADII, dpadKey, ensureButtonTextures, roundButtonKey } from '../gfx/textures.ts';
 import type { Controls } from '../input/controls.ts';
 import type { Circle, Layout } from '../view/layout.ts';
+import type { MapInfo, MapScene } from './MapScene.ts';
 import type { PauseScene } from './PauseScene.ts';
 import type { PlayScene } from './PlayScene.ts';
 
@@ -41,7 +42,12 @@ export class UiScene extends Phaser.Scene {
     crystal: Phaser.GameObjects.Image; crystals: OutlinedText;
     head: Phaser.GameObjects.Image; lives: OutlinedText;
     edel: Phaser.GameObjects.Image[]; time: OutlinedText;
+    /** Kartenmodus: Name des Punkts. */
+    name: OutlinedText;
   };
+  /** `'map'`: Info-Leiste zeigt den Kartenpunkt statt der Spielwerte (Event `ui-mode`, Registry `uiMode`). */
+  private mode: 'play' | 'map' = 'play';
+  private mapInfo: MapInfo | null = null;
   /** Rechte Kante der Zeit, sie steht rechtsbündig. */
   private timeRight = 0;
 
@@ -62,16 +68,21 @@ export class UiScene extends Phaser.Scene {
       crystal: icon('iCrystal'), crystals: new OutlinedText(this, 0, 0, ''),
       head: icon('iHead'), lives: new OutlinedText(this, 0, 0, ''),
       edel: [icon('iEdelOff'), icon('iEdelOff'), icon('iEdelOff')], time: new OutlinedText(this, 0, 0, ''),
+      name: new OutlinedText(this, 0, 0, ''),
     };
+    this.mode = this.registry.get('uiMode') === 'map' ? 'map' : 'play';
     this.applyLayout(this.registry.get('layout') as Layout);
     const offTap = this.controls.onTap((x, y) => this.onTap(x, y));
     const onEditing = (v: boolean): void => { this.editing = v; this.update(); };
+    const onMode = (m: 'play' | 'map'): void => { this.mode = m; this.mapInfo = null; this.applyLayout(this.layout); };
     this.game.events.on('layout', this.applyLayout, this);
     this.game.events.on('controls-editing', onEditing);
+    this.game.events.on('ui-mode', onMode);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offTap();
       this.game.events.off('layout', this.applyLayout, this);
       this.game.events.off('controls-editing', onEditing);
+      this.game.events.off('ui-mode', onMode);
     });
   }
 
@@ -80,7 +91,21 @@ export class UiScene extends Phaser.Scene {
     const show = (this.touchDevice || this.controls.touchSeen) && !this.editing;
     this.dpad.setVisible(show).setTexture(dpadKey(l.dpad.r, held));
     this.jump.setVisible(show).setTexture(roundButtonKey('jump', l.jump.r, held.jump));
-    this.updateHud();
+    if (this.mode === 'map') this.updateMapInfo();
+    else this.updateHud();
+  }
+
+  /** Info zum Kartenpunkt aus der Registry; nur bei Änderung neu setzen und anordnen. */
+  private updateMapInfo(): void {
+    const info = (this.registry.get('mapInfo') as MapInfo | undefined) ?? null;
+    if (info === this.mapInfo) return;
+    this.mapInfo = info;
+    const h = this.hud;
+    h.name.setText(info?.name ?? '');
+    h.time.setText(info?.time ?? '');
+    const e = info?.edelweiss;
+    h.edel.forEach((img, i) => img.setTexture(e?.[i] ? 'iEdel' : 'iEdelOff'));
+    this.layoutHud(this.layout);
   }
 
   /** Werte aus dem laufenden Spiel. Beim allerersten Start kann die Spielszene noch fehlen. */
@@ -101,6 +126,7 @@ export class UiScene extends Phaser.Scene {
     const p = this.layout.pauseHit;
     if (x < p.x || x >= p.x + p.w || y < p.y || y >= p.y + p.h) return;
     if (this.scene.isActive('pause')) (this.scene.get('pause') as PauseScene).resume();
+    else if (this.mode === 'map') (this.scene.get('map') as MapScene).requestPause();
     else (this.scene.get('play') as PlayScene).requestPause();
   }
 
@@ -111,6 +137,20 @@ export class UiScene extends Phaser.Scene {
     const y = top + Math.floor((r.y + r.h - top - GLYPH_H) / 2);
     h.strip.clear();
     if (!portrait) h.strip.fillStyle(STRIP, STRIP_ALPHA).fillRect(0, 0, l.gameW, r.y + r.h);
+    const map = this.mode === 'map';
+    for (const o of [h.crystal, h.crystals, h.head, h.lives]) o.setVisible(!map);
+    h.name.setVisible(map);
+    const info = map ? this.mapInfo : null;
+    const hasTime = !map || info?.time != null;
+    h.time.setVisible(hasTime);
+    h.edel.forEach((img) => img.setVisible(hasTime));
+    const p = l.pause, bx = p.x + Math.floor((p.w - 2 * PAUSE_BAR_W - PAUSE_BAR_GAP) / 2);
+    h.pause.clear().fillStyle(portrait ? PAUSE_PORTRAIT : PAUSE_LANDSCAPE, portrait ? 1 : PAUSE_LANDSCAPE_ALPHA);
+    h.pause.fillRect(bx, y, PAUSE_BAR_W, GLYPH_H).fillRect(bx + PAUSE_BAR_W + PAUSE_BAR_GAP, y, PAUSE_BAR_W, GLYPH_H);
+    if (map) {
+      this.layoutMapInfo(l, y);
+      return;
+    }
     let x = r.x + (portrait ? 6 : 4);
     h.crystal.setPosition(x, y);
     x += ICON + ICON_GAP;
@@ -123,9 +163,29 @@ export class UiScene extends Phaser.Scene {
     h.edel.forEach((img, i) => img.setPosition(x + i * EDEL_STEP, y));
     this.timeRight = portrait ? l.pause.x - 6 : r.x + r.w - 4;
     h.time.setPosition(this.timeRight - h.time.width, y);
-    const p = l.pause, bx = p.x + Math.floor((p.w - 2 * PAUSE_BAR_W - PAUSE_BAR_GAP) / 2);
-    h.pause.clear().fillStyle(portrait ? PAUSE_PORTRAIT : PAUSE_LANDSCAPE, portrait ? 1 : PAUSE_LANDSCAPE_ALPHA);
-    h.pause.fillRect(bx, y, PAUSE_BAR_W, GLYPH_H).fillRect(bx + PAUSE_BAR_W + PAUSE_BAR_GAP, y, PAUSE_BAR_W, GLYPH_H);
+  }
+
+  /**
+   * Kartenmodus. Hochkant: Name mittig im Steuerfeld, darunter Bestzeit und Edelweiß. Quer: Name links in der Leiste,
+   * Bestzeit und Edelweiß rechts neben dem Pause-Zeichen.
+   */
+  private layoutMapInfo(l: Layout, barY: number): void {
+    const h = this.hud, r = l.hud, hasTime = this.mapInfo?.time != null;
+    const edelW = 2 * EDEL_STEP + ICON;
+    if (l.orientation === 'portrait') {
+      const nameY = r.y + 6, rowY = nameY + GLYPH_H + 5;
+      h.name.setPosition(Math.floor((l.gameW - h.name.width) / 2), nameY);
+      const total = h.time.width + GROUP_GAP + edelW;
+      const x0 = Math.floor((l.gameW - total) / 2);
+      h.time.setPosition(x0, rowY + 1);
+      h.edel.forEach((img, i) => img.setPosition(x0 + h.time.width + GROUP_GAP + i * EDEL_STEP, rowY));
+      return;
+    }
+    h.name.setPosition(r.x + 4, barY);
+    if (!hasTime) return;
+    const x0 = l.pause.x + l.pause.w + 8;
+    h.time.setPosition(x0, barY);
+    h.edel.forEach((img, i) => img.setPosition(x0 + h.time.width + GROUP_GAP + i * EDEL_STEP, barY - 1));
   }
 
   private applyLayout(l: Layout): void {
