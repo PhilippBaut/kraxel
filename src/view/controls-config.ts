@@ -21,6 +21,8 @@ export const CONTROLS_KEY = 'kraxel-controls-v1';
 export const SCALE_MIN = 0.75, SCALE_MAX = 1.5, SCALE_STEP = 0.125, BUTTON_GAP = 4;
 /** Rundungsspielraum beim Prüfen, damit Umrechnen über fx/fy keine Knöpfe knapp verwirft. */
 const EPS = 1e-6;
+/** Zusatz um den gezeichneten Kreis, in dem `pickButton` einen Knopf trifft (Daumen-Spielraum). */
+export const PICK_SLOP = 4;
 
 export function defaultControlsConfig(): ControlsConfig {
   return { version: 1, portrait: null, landscape: null };
@@ -30,6 +32,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/** Eine Stelle ist gültig, wenn alles endlich ist, fx/fy in 0..1 und die Größe im Bereich liegt (Laden und Anwenden teilen das). */
 function isPlace(v: unknown): v is ButtonPlace {
   if (!isRecord(v)) return false;
   const { fx, fy, scale } = v;
@@ -82,30 +85,40 @@ function circleOf(base: Layout, id: ButtonId, p: ButtonPlace): Circle {
   };
 }
 
-function rectHitsCircle(r: Rect, c: Circle): boolean {
+/** Schneidet der Kreis (Radius r) das Rechteck? Gemeinsam für Prüfung und Werkzeugleiste. */
+export function circleHitsRect(r: Rect, c: Circle): boolean {
   const nx = Math.max(r.x, Math.min(c.cx, r.x + r.w)), ny = Math.max(r.y, Math.min(c.cy, r.y + r.h));
   return Math.hypot(c.cx - nx, c.cy - ny) < c.r;
 }
 
-/** Gültig: jeder Kreis ganz im Bereich, Abstand mindestens rA + rB + Lücke, keine Berührung der Pause-Fläche (in beiden Ansichten). */
+/** Steuerkreuz: Armbreite wie in `drawDpad` (gfx/buttons.ts), dort `round(r * 0.32)`. */
+const DPAD_HALF = 0.32;
+
+/** Gezeichnete Ausdehnung (Radius um die Mitte): runde Knöpfe zeichnen mit Rand bei r+1, das Steuerkreuz reicht mit den Arm-Ecken bis √((r+1)²+(half+1)²). */
+export function drawnRadius(id: ButtonId, r: number): number {
+  return id === 'dpad' ? Math.hypot(r + 1, Math.round(r * DPAD_HALF) + 1) : r + 1;
+}
+
+/** Gültig: jeder Kreis ganz im Bereich, gezeichnete Ausdehnungen (drawnRadius) mindestens Lücke auseinander, keine Berührung der Pause-Fläche (in beiden Ansichten). */
 function isValid(l: Layout): boolean {
   const a = l.controlsArea;
   const cs = BUTTON_IDS.map((id) => l[id]);
+  const ext = BUTTON_IDS.map((id) => drawnRadius(id, l[id].r));
   for (const c of cs) {
     if (![c.cx, c.cy, c.r, c.hitR].every(Number.isFinite)) return false;
     if (c.cx - c.r < a.x - EPS || c.cx + c.r > a.x + a.w + EPS || c.cy - c.r < a.y - EPS || c.cy + c.r > a.y + a.h + EPS) return false;
-    if (rectHitsCircle(l.pauseHit, c)) return false;
+    if (circleHitsRect(l.pauseHit, c)) return false;
   }
   for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
     const p = cs[i]!, q = cs[j]!;
-    if (Math.hypot(p.cx - q.cx, p.cy - q.cy) < p.r + q.r + BUTTON_GAP - EPS) return false;
+    if (Math.hypot(p.cx - q.cx, p.cy - q.cy) < ext[i]! + ext[j]! + BUTTON_GAP - EPS) return false;
   }
   return true;
 }
 
 /** Anordnung auf das Standard-Layout anwenden. Null oder ungültig: `base` unverändert. */
 export function applyControls(base: Layout, o: OrientationConfig | null): Layout {
-  if (!o) return base;
+  if (!o || !BUTTON_IDS.every((id) => isPlace(o[id]))) return base;
   const next: Layout = { ...base, dpad: circleOf(base, 'dpad', o.dpad), jump: circleOf(base, 'jump', o.jump), action: circleOf(base, 'action', o.action) };
   return isValid(next) ? next : base;
 }
@@ -119,7 +132,8 @@ export function configFromLayout(l: Layout): OrientationConfig {
     return {
       fx: sx > 0 ? (c.cx - a.x - c.r) / sx : 0.5,
       fy: sy > 0 ? (c.cy - a.y - c.r) / sy : 0.5,
-      scale: c.r / BASE_RADII[l.orientation][id].r,
+      // Auf das Raster einrasten: r = round(r0 × s) ist gerundet, c.r / r0 läge sonst z. B. bei 1,524 und würde beim Laden verworfen.
+      scale: clamp(Math.round(c.r / BASE_RADII[l.orientation][id].r / SCALE_STEP) * SCALE_STEP, SCALE_MIN, SCALE_MAX),
     };
   };
   return { dpad: one('dpad'), jump: one('jump'), action: one('action') };
@@ -158,13 +172,13 @@ export function resizeButton(l: Layout, id: ButtonId, scale: number): Layout | n
   return isValid(next) ? next : null;
 }
 
-/** Welcher Knopf liegt unter dem Punkt (gezeichneter Kreis + 4 px)? Der nächste Mittelpunkt gewinnt. */
+/** Welcher Knopf liegt unter dem Punkt (gezeichneter Kreis + PICK_SLOP)? Der nächste Mittelpunkt gewinnt. */
 export function pickButton(l: Layout, x: number, y: number): ButtonId | null {
   let best: ButtonId | null = null, bestD = Infinity;
   for (const id of BUTTON_IDS) {
     const c = l[id];
     const d = Math.hypot(x - c.cx, y - c.cy);
-    if (d <= c.r + 4 && d < bestD) { best = id; bestD = d; }
+    if (d <= c.r + PICK_SLOP && d < bestD) { best = id; bestD = d; }
   }
   return best;
 }

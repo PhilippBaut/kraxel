@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { KeyValueStore } from '../core/types.ts';
 import { computeLayout, type Circle, type Layout } from './layout.ts';
 import {
-  BUTTON_GAP, BUTTON_IDS, CONTROLS_KEY, applyControls, configFromLayout, defaultControlsConfig, loadControlsConfig,
+  BUTTON_GAP, BUTTON_IDS, CONTROLS_KEY, SCALE_MAX, SCALE_MIN, SCALE_STEP, applyControls, circleHitsRect, drawnRadius, configFromLayout, defaultControlsConfig, loadControlsConfig,
   moveButton, pickButton, resizeButton, saveControlsConfig, withOrientation, type ControlsConfig, type OrientationConfig,
 } from './controls-config.ts';
 
@@ -83,7 +83,7 @@ describe('Knopf-Anordnung', () => {
     const l = P();
     const d = l.dpad;
     // Sprung knapp über das Steuerkreuz setzen (Abstand = Summe der Radien + Lücke), dann vergrößern.
-    const next = moveButton(l, 'jump', d.cx, d.cy - d.r - l.jump.r - BUTTON_GAP);
+    const next = moveButton(l, 'jump', d.cx, d.cy - drawnRadius('dpad', d.r) - drawnRadius('jump', l.jump.r) - BUTTON_GAP);
     expect(next).not.toBeNull();
     expect(resizeButton(next!, 'jump', 1.5)).toBeNull();
   });
@@ -172,5 +172,62 @@ describe('Knopf-Anordnung', () => {
     saveControlsConfig(store, c);
     expect(store.getItem(CONTROLS_KEY)).not.toBeNull();
     expect(loadControlsConfig(store)).toEqual(c);
+  });
+
+  it.each([
+    [844, 390, { top: 0, right: 47, bottom: 21, left: 47 }],
+    [667, 375, { top: 0, right: 0, bottom: 0, left: 0 }],
+    [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
+    [375, 667, { top: 20, right: 0, bottom: 0, left: 0 }],
+  ])('Größe ändern, speichern, neu laden ergibt dieselbe Anordnung (%ix%i)', (w, h, ins) => {
+    const base = computeLayout(w, h, ins);
+    let tested = 0;
+    for (const id of BUTTON_IDS) for (let s = SCALE_MIN; s <= SCALE_MAX + 1e-9; s += SCALE_STEP) {
+      const edited = resizeButton(base, id, s);
+      if (!edited) continue; // Überlappung: abgelehnt
+      tested++;
+      const store = mem();
+      saveControlsConfig(store, withOrientation(defaultControlsConfig(), base.orientation, configFromLayout(edited)));
+      const back = computeLayout(w, h, ins, loadControlsConfig(store));
+      for (const b of BUTTON_IDS) {
+        expect(back[b].r, `${id} ${s} ${b}`).toBe(edited[b].r);
+        expect(back[b].hitR).toBe(edited[b].hitR);
+        expect(back[b].cx).toBeCloseTo(edited[b].cx, 6);
+        expect(back[b].cy).toBeCloseTo(edited[b].cy, 6);
+      }
+    }
+    expect(tested).toBeGreaterThan(10);
+  });
+
+  it('Mindestabstand: gezeichnete Ausdehnung (Rand, Steuerkreuz-Ecken) hält 4 px Abstand', () => {
+    for (const l of [P(), Q()]) for (const a of BUTTON_IDS) for (const b of BUTTON_IDS) {
+      if (a >= b) continue;
+      let minGap = Infinity;
+      // Knopf b von weit rechts an a heranschieben; jede angenommene Stellung muss Abstand halten.
+      for (let x = l.controlsArea.x + l.controlsArea.w; x > l.controlsArea.x; x -= 0.25) {
+        const base = moveButton(l, a, l[a].cx, l[a].cy) ?? l;
+        const m = moveButton(base, b, x, base[a].cy);
+        if (!m) continue;
+        const d = Math.hypot(m[a].cx - m[b].cx, m[a].cy - m[b].cy);
+        minGap = Math.min(minGap, d - drawnRadius(a, m[a].r) - drawnRadius(b, m[b].r));
+      }
+      if (minGap !== Infinity) expect(minGap).toBeGreaterThanOrEqual(BUTTON_GAP - 1e-6);
+    }
+    // Bei größter Größe (Steuerkreuz-Ecke am weitesten außen) ebenso.
+    let big: Layout | null = null;
+    for (let sc = SCALE_MAX; !big && sc >= SCALE_MIN; sc -= SCALE_STEP) big = resizeButton(P(), 'dpad', sc);
+    expect(big).not.toBeNull();
+    big = big!;
+    for (let x = big.controlsArea.x + big.controlsArea.w; x > big.dpad.cx; x -= 0.25) {
+      const m = moveButton(big, 'jump', x, big.dpad.cy);
+      if (m) expect(Math.hypot(m.dpad.cx - m.jump.cx, 0) - drawnRadius('dpad', m.dpad.r) - drawnRadius('jump', m.jump.r)).toBeGreaterThanOrEqual(BUTTON_GAP - 1e-6);
+    }
+  });
+
+  it('circleHitsRect: Kreis berührt Rechteck erst bei Überschneidung', () => {
+    const r = { x: 10, y: 10, w: 10, h: 10 };
+    expect(circleHitsRect(r, { cx: 5, cy: 15, r: 5, hitR: 0 })).toBe(false);
+    expect(circleHitsRect(r, { cx: 5, cy: 15, r: 5.5, hitR: 0 })).toBe(true);
+    expect(circleHitsRect(r, { cx: 15, cy: 15, r: 1, hitR: 0 })).toBe(true);
   });
 });
