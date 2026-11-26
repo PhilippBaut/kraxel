@@ -8,6 +8,8 @@ export interface Circle { cx: number; cy: number; r: number; hitR: number }
 export interface Layout {
   orientation: 'portrait' | 'landscape'; gameW: number; gameH: number; scale: number;
   view: Rect; panel: Rect | null; hud: Rect; pause: Rect;
+  /** Tipp-Fläche für Pause (mind. 30×24); das sichtbare Zeichen `pause` liegt darin. */
+  pauseHit: Rect;
   dpad: Circle; jump: Circle; action: Circle; controlsAlpha: number;
 }
 
@@ -26,6 +28,7 @@ function landscape(cssW: number, cssH: number, insets: Insets): Layout {
     view: { x: 0, y: 0, w: gameW, h: VIEW_H }, panel: null,
     hud: { x: L, y: T, w: gameW - L - R, h: 12 },
     pause: { x: gameW / 2 - 8, y: T + 2, w: 16, h: 12 },
+    pauseHit: { x: gameW / 2 - 16, y: T, w: 32, h: 24 },
     dpad: { cx: L + 44, cy: B - 38, r: 32, hitR: 60 },
     jump,
     action: { cx: jump.cx - 58, cy: B - 14, r: 14, hitR: 24 },
@@ -48,6 +51,7 @@ export function computeLayout(cssW: number, cssH: number, insets: Insets): Layou
         panel: { x: 0, y: panelY, w: PORTRAIT_VIEW_W, h: panelH },
         hud: { x: 0, y: panelY, w: PORTRAIT_VIEW_W, h: 16 },
         pause: { x: 236, y: panelY + 2, w: 16, h: 12 },
+        pauseHit: { x: 224, y: panelY, w: 32, h: 24 }, // rechtes Ende der Info-Zeile, 8 px nach unten verlängert
         dpad: { cx: 60, cy: B - 50, r: 42, hitR: 60 },
         jump: { cx: 200, cy: B - 56, r: 28, hitR: 44 },
         action: { cx: 140, cy: B - 16, r: 16, hitR: 24 },

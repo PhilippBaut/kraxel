@@ -106,7 +106,7 @@ export class UiScene extends Phaser.Scene {
 
   /** Tipp auf den Pause-Knopf: pausieren, im Pausenmenü weiterspielen. */
   private onTap(x: number, y: number): void {
-    const p = this.layout.pause;
+    const p = this.layout.pauseHit;
     if (x < p.x || x >= p.x + p.w || y < p.y || y >= p.y + p.h) return;
     if (this.scene.isActive('pause')) (this.scene.get('pause') as PauseScene).resume();
     else (this.scene.get('play') as PlayScene).requestPause();

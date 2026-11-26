@@ -52,3 +52,27 @@ describe('computeLayout', () => {
     expect(apart(l.dpad, l.jump) && apart(l.dpad, l.action) && apart(l.jump, l.action)).toBe(true);
   });
 });
+
+describe('Pause-Trefferfläche', () => {
+  const rectHitsCircle = (r: Rect, c: Circle) => {
+    const nx = Math.max(r.x, Math.min(c.cx, r.x + r.w)), ny = Math.max(r.y, Math.min(c.cy, r.y + r.h));
+    return Math.hypot(c.cx - nx, c.cy - ny) < c.r;
+  };
+  it.each([
+    [375, 667, { top: 20, right: 0, bottom: 0, left: 0 }], [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }], [430, 932, { top: 59, right: 0, bottom: 34, left: 0 }],
+    [667, 375, { top: 0, right: 0, bottom: 0, left: 0 }], [844, 390, { top: 0, right: 47, bottom: 21, left: 47 }], [932, 430, { top: 0, right: 59, bottom: 21, left: 59 }],
+  ])('ist mindestens 30×24, sichtbar innen und liegt in der Safe Area auf %ix%i', (w, h, ins) => {
+    const l = computeLayout(w, h, ins);
+    const a = l.pauseHit, v = l.pause;
+    expect(a.w).toBeGreaterThanOrEqual(30);
+    expect(a.h).toBeGreaterThanOrEqual(24);
+    // Das sichtbare Zeichen liegt ganz in der Trefferfläche.
+    expect(v.x >= a.x && v.x + v.w <= a.x + a.w && v.y >= a.y && v.y + v.h <= a.y + a.h).toBe(true);
+    const sx = Math.ceil(ins.left / l.scale), sy = Math.ceil(ins.top / l.scale);
+    const sw = l.gameW - sx - Math.ceil(ins.right / l.scale), sh = l.gameH - sy - Math.ceil(ins.bottom / l.scale);
+    expect(a.x >= sx && a.x + a.w <= sx + sw && a.y >= sy && a.y + a.h <= sy + sh).toBe(true);
+    // Sie verdeckt keinen Knopf.
+    for (const c of [l.dpad, l.jump, l.action]) expect(rectHitsCircle(a, c)).toBe(false);
+  });
+});
+

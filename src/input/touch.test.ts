@@ -39,12 +39,22 @@ describe('zoneAt', () => {
     expect(zoneAt(L.view.w / 2, 10, L, false)).toBeNull();
   });
   const P = computeLayout(390, 844, { top: 47, right: 0, bottom: 34, left: 0 });
-  const inPause = (x: number, y: number) => x >= P.pause.x && x < P.pause.x + P.pause.w && y >= P.pause.y && y < P.pause.y + P.pause.h;
-  it('hochkant zählt jeder Punkt im Steuerfeld außer Pause', () => {
+  const inRect = (x: number, y: number, r: { x: number; y: number; w: number; h: number }) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+  it('hochkant zählt jeder Punkt im Steuerfeld außer Info-Zeile und Pause-Fläche', () => {
     const p = P.panel!;
-    for (let y = p.y; y < p.y + p.h; y += 4) for (let x = 0; x < p.w; x += 4) if (!inPause(x, y)) expect(zoneAt(x, y, P, false)).not.toBeNull();
+    for (let y = p.y; y < p.y + p.h; y += 2) {
+      for (let x = 0; x < p.w; x += 2) {
+        if (inRect(x, y, P.hud) || inRect(x, y, P.pauseHit)) continue;
+        expect(zoneAt(x, y, P, false), `${x},${y}`).not.toBeNull();
+      }
+    }
     expect(zoneAt(P.pause.x + 8, P.pause.y + 6, P, false)).toBeNull();
     expect(zoneAt(128, P.view.y + 96, P, false)).toBeNull();
+  });
+  it('hochkant ist die ganze Info-Zeile keine Steuerzone, ein Fehltipp neben Pause springt nicht', () => {
+    for (let y = P.hud.y; y < P.hud.y + P.hud.h; y++) for (let x = 0; x < P.hud.w; x++) expect(zoneAt(x, y, P, true), `${x},${y}`).toBeNull();
+    // Pause-Fläche selbst: ebenfalls keine Zone, auch die Ränder darunter.
+    for (let y = P.pauseHit.y; y < P.pauseHit.y + P.pauseHit.h; y++) for (let x = P.pauseHit.x; x < P.pauseHit.x + P.pauseHit.w; x++) expect(zoneAt(x, y, P, true)).toBeNull();
   });
   it('hochkant gewinnt der nächste Knopfrand', () => {
     const mid = (P.dpad.cx + P.dpad.r + P.jump.cx - P.jump.r) / 2, y = (P.dpad.cy + P.jump.cy) / 2;
