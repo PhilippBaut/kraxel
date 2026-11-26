@@ -35,6 +35,6 @@ export class TileGrid {
 
   isSolid(cx: number, cy: number): boolean {
     const c = this.get(cx, cy);
-    return c === Cell.Ground || c === Cell.Rock || c === Cell.Crate || c === Cell.CrateUsed;
+    return c === Cell.Ground || c === Cell.Rock || c === Cell.Crate || c === Cell.CrateUsed || c === Cell.LeafPad;
   }
 }

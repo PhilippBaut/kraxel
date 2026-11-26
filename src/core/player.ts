@@ -2,8 +2,9 @@
 import { TILE } from '../config.ts';
 import { isOnGround, moveBody, wallAt } from './collide.ts';
 import type { TileGrid } from './grid.ts';
-import { DEFAULT_TUNING, jumpGravity, jumpVelocity } from './tuning.ts';
+import { DEFAULT_TUNING, jumpGravity, jumpVelocity, LEAF_BOUNCE_HELD_TILES, LEAF_BOUNCE_TILES } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
+import { Cell } from './types.ts';
 import type { Body, GameEvent, InputFrame, SpecialItem } from './types.ts';
 
 export type PlayerMode = 'normal' | 'wallSlide' | 'climb' | 'poundHang' | 'pound' | 'poundRecover' | 'dead' | 'goal';
@@ -158,6 +159,7 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
   }
 
   const y0 = b.y;
+  const vyBefore = b.vy;
   const res = moveBody(b, dt, grid, t.cornerCorrection);
   if (p.mode === 'climb') {
     p.climbLeft = Math.max(0, p.climbLeft - (y0 - b.y));
@@ -170,7 +172,10 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
 
   const wasGrounded = p.grounded;
   p.grounded = b.vy >= 0 && isOnGround(b, grid);
-  if (p.grounded && !wasGrounded) events.push({ type: 'land' });
+  // Landung von oben (aus der Luft, fallend) auf ein Blätterpolster: federn statt landen.
+  const pad = p.grounded && !wasGrounded && vyBefore > 0 ? padUnderFeet(b, grid) : null;
+  if (pad) leafBounce(p, t, input.jump, pad, events);
+  else if (p.grounded && !wasGrounded) events.push({ type: 'land' });
   if (b.vy >= 0) p.jumpRising = false;
   if (p.grounded && p.mode === 'wallSlide') p.mode = 'normal';
 
@@ -183,6 +188,32 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
   else p.anim = Math.abs(b.vx) > t.walkSpeed + 1 ? 'run' : 'walk';
 
   return res.headCells;
+}
+
+/**
+ * Randregel: Federn löst aus, sobald unter mindestens einem Fuß (also irgendwo unter der Körperbreite, auch unter der Körpermitte)
+ * ein Polster liegt. Steht der andere Fuß auf Boden, gewinnt das Polster. Bei mehreren Polstern zählt das unter der Körpermitte,
+ * sonst das erste von links.
+ */
+function padUnderFeet(b: Body, grid: TileGrid): [number, number] | null {
+  const row = Math.floor((b.y + b.h + 1) / TILE); // wie `isOnGround`: Auflage höchstens 1 px unter den Füßen
+  const mid = Math.floor((b.x + b.w / 2) / TILE);
+  if (grid.get(mid, row) === Cell.LeafPad) return [mid, row];
+  for (let cx = Math.floor(b.x / TILE); cx <= Math.floor((b.x + b.w - 1e-9) / TILE); cx++) {
+    if (grid.get(cx, row) === Cell.LeafPad) return [cx, row];
+  }
+  return null;
+}
+
+/** Federn: `vy = -√(2·g·H)` mit der Sprungschwerkraft g, H = 96 px (mit gehaltenem Sprung 112 px). */
+function leafBounce(p: PlayerState, t: Tuning, high: boolean, pad: [number, number], events: GameEvent[]): void {
+  const tiles = high ? LEAF_BOUNCE_HELD_TILES : LEAF_BOUNCE_TILES;
+  p.body.vy = -Math.sqrt(2 * jumpGravity(t) * tiles * TILE);
+  p.grounded = false;
+  p.coyote = 0;
+  p.jumpRising = false;
+  p.climbLeft = t.climbBudget;
+  events.push({ type: 'bounce', cx: pad[0], cy: pad[1] });
 }
 
 /** Rennen: ununterbrochen am Boden in eine Richtung halten. Loslassen oder Umdrehen setzt zurück. */
@@ -292,6 +323,14 @@ function stepPound(p: PlayerState, grid: TileGrid, t: Tuning, dt: number, events
   const res = moveBody(b, dt, grid, 0);
   if (!res.down) return;
   const row = Math.round((b.y + b.h) / TILE);
+  // Stampfen auf ein Polster: hoch federn (hoher Wert), das Stampfen ist damit vorbei.
+  const pad = padUnderFeet(b, grid);
+  if (pad) {
+    p.mode = 'normal';
+    leafBounce(p, t, true, pad, events);
+    p.anim = 'jump';
+    return;
+  }
   for (let cx = Math.floor(b.x / TILE); cx <= Math.floor((b.x + b.w - 1e-9) / TILE); cx++) {
     if (grid.isSolid(cx, row)) poundCells.push([cx, row]);
   }

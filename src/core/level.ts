@@ -23,6 +23,8 @@ export class LevelError extends Error {
 
 const CELL_CHARS: Record<string, Cell> = {
   '#': Cell.Ground, B: Cell.Rock, K: Cell.Crate, M: Cell.Crate, H: Cell.Crate, J: Cell.Crate, E: Cell.Crate, V: Cell.HiddenCrate,
+  /** L: Blätterpolster, fest wie Boden, federt von oben. */
+  L: Cell.LeafPad,
 };
 const CRATE_CHARS: Record<string, CrateContent> = {
   K: { kind: 'crystal' }, M: { kind: 'multi' }, H: { kind: 'item', item: 'helm' },

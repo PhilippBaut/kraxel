@@ -12,12 +12,12 @@ import type { PlayerState } from './player.ts';
 import { DEFAULT_TUNING } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
 
-/** `#` Ground, `B` Rock, `K` Crate, `U` CrateUsed, `V` HiddenCrate, alles andere leer. */
+/** `#` Ground, `B` Rock, `K` Crate, `U` CrateUsed, `V` HiddenCrate, `L` LeafPad, alles andere leer. */
 export function gridFrom(rows: string[]): TileGrid {
   const width = Math.max(...rows.map((r) => r.length));
   const g = new TileGrid(width, rows.length);
   const map: Record<string, Cell> = {
-    '#': Cell.Ground, B: Cell.Rock, K: Cell.Crate, U: Cell.CrateUsed, V: Cell.HiddenCrate,
+    '#': Cell.Ground, B: Cell.Rock, K: Cell.Crate, U: Cell.CrateUsed, V: Cell.HiddenCrate, L: Cell.LeafPad,
   };
   rows.forEach((row, cy) => {
     for (let cx = 0; cx < row.length; cx++) g.set(cx, cy, map[row[cx]!] ?? Cell.Empty);

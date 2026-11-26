@@ -36,6 +36,10 @@ export function jumpVelocity(t: Tuning, running: boolean): number {
   return Math.sqrt(2 * jumpGravity(t) * (running ? t.runJumpHeight : t.jumpHeight));
 }
 
+/** Federhöhe des Blätterpolsters in Kacheln (ohne und mit gehaltenem Sprung). */
+export const LEAF_BOUNCE_TILES = 6;
+export const LEAF_BOUNCE_HELD_TILES = 7;
+
 export const TUNING_KEY = 'kraxel-tuning-v1';
 
 /** `?debug` in der Adresse (z. B. `window.location.search`). */
