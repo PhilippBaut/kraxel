@@ -49,7 +49,6 @@ export class ControlsScene extends Phaser.Scene {
   private hint!: OutlinedText;
   private toolLabels: OutlinedText[] = [];
   private tools: Tool[] = [];
-  private barRect: Rect = { x: 0, y: 0, w: 0, h: 0 };
 
   constructor() {
     super('controls');
@@ -94,7 +93,7 @@ export class ControlsScene extends Phaser.Scene {
 
     const offPointer = this.controls.onPointer((e) => this.onPointer(e));
     const offPause = this.controls.onPause(() => this.close());
-    const onLayout = (): void => this.refresh(this.registry.get('layoutBase') as Layout);
+    const onLayout = (): void => { if (!this.closing) this.refresh(this.registry.get('layoutBase') as Layout); };
     this.game.events.on('layout', onLayout);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offPointer();
@@ -152,14 +151,13 @@ export class ControlsScene extends Phaser.Scene {
   private onPointer(e: PointerEventInfo): void {
     if (this.closing) return;
     if (e.type === 'down') {
-      if (this.drag) return;
+      this.drag = null; // ein altes Ziehen ohne 'up' (z. B. nach Fokusverlust) verfällt
       const tool = this.tools.find((t) => inside(t.rect, e.x, e.y));
       if (tool) {
         this.sfx.play('select');
         tool.run();
         return;
       }
-      if (inside(this.barRect, e.x, e.y)) return; // die Leiste liegt oben, darunter wird nichts gegriffen
       const id = pickButton(this.cur, e.x, e.y);
       if (!id) return;
       const c = this.cur[id];
@@ -220,7 +218,17 @@ export class ControlsScene extends Phaser.Scene {
     const v = l.view;
     const x = v.x + Math.floor((v.w - w) / 2);
     const y = l.orientation === 'portrait' ? v.y + Math.floor((v.h - h) / 2) : l.hud.y + l.hud.h + 3;
-    this.barRect = { x, y, w, h };
+    // Verdeckt die Leiste einen Knopf (ganz oder teils), wird sie durchscheinend.
+    const covers = BUTTON_IDS.some((id) => {
+      const c = l[id];
+      const nx = Math.max(x, Math.min(c.cx, x + w)), ny = Math.max(y, Math.min(c.cy, y + h));
+      return Math.hypot(c.cx - nx, c.cy - ny) < c.r;
+    });
+    const a = covers ? 0.55 : 1;
+    this.bar.setAlpha(a);
+    this.title.setAlpha(a);
+    this.hint.setAlpha(a);
+    for (const t of this.toolLabels) t.setAlpha(a);
     this.bar.clear();
     drawPanel(this.bar, { x, y, w, h });
     this.title.setPosition(x + Math.floor((w - this.title.width) / 2), y + PAD);
