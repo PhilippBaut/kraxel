@@ -102,6 +102,8 @@ export function killPlayer(s: GameState): GameEvent[] {
   p.body.vx = 0;
   p.body.vy = -DEATH_JUMP;
   s.session.lives -= 1;
+  s.pebbles = [];
+  s.pebbleCooldown = 0;
   return [{ type: 'death' }];
 }
 

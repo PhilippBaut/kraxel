@@ -33,10 +33,12 @@ describe('Kiesel', () => {
     }
     expect(max).toBeLessThanOrEqual(PEBBLE_MAX);
     expect(max).toBe(2);
-    // Abklingzeit: 0,5 s Dauerfeuer ergeben höchstens 3 Schüsse
-    const t = armed();
-    const ev = runGame(t, [[{ action: true }, 1], [{}, 1], [{ action: true }, 1], [{}, 1], [{ action: true }, 1]]);
-    expect(ev.filter((e) => e.type === 'shoot').length).toBe(1);
+    // Abklingzeit: kein zweiter Schuss vor 0,2 s (10 Schritte), kurz danach einer
+    const c = armed();
+    const shotsIn = (ev: Array<{ type: string }>) => ev.filter((e) => e.type === 'shoot').length;
+    expect(shotsIn(runGame(c, [[{ action: true }, 1]]))).toBe(1);
+    expect(shotsIn(runGame(c, [[{}, 9], [{ action: true }, 1]]))).toBe(0);
+    expect(shotsIn(runGame(c, [[{}, 3], [{ action: true }, 1]]))).toBe(1);
     expect(shots).toBeGreaterThan(1);
   });
 
@@ -101,17 +103,24 @@ describe('Kiesel', () => {
   });
 
   it('Tod, Respawn und Neustart räumen Kiesel weg', () => {
-    const s = armed();
-    runGame(s, [[{ action: true }, 1]]);
-    expect(s.pebbles.length).toBe(1);
-    respawn(s);
-    expect(s.pebbles.length).toBe(0);
-    s.pebbles.push({ body: { x: 0, y: 0, w: 4, h: 4, vx: 0, vy: 0 }, age: 0 });
-    restartLevel(s);
-    expect(s.pebbles.length).toBe(0);
-    runGame(s, [[{ action: true }, 1]]);
-    killPlayer(s);
-    runGame(s, [[{ action: true }, 1]]);
-    expect(s.pebbles.length).toBe(0);
+    const feuer = (s: GameState) => {
+      s.player.special = 'sling';
+      s.pebbleCooldown = 0;
+      runGame(s, [[{ action: true }, 1]]);
+      expect(s.pebbles.length).toBeGreaterThan(0);
+    };
+    const a = armed();
+    feuer(a);
+    killPlayer(a);
+    expect(a.pebbles.length).toBe(0);
+    const b = armed();
+    feuer(b);
+    respawn(b);
+    expect(b.pebbles.length).toBe(0);
+    const c = armed();
+    feuer(c);
+    restartLevel(c);
+    expect(c.pebbles.length).toBe(0);
+    expect(c.pebbleCooldown).toBe(0);
   });
 });
