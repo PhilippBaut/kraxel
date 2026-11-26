@@ -85,7 +85,9 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
   // Modus für diesen Schritt bestimmen: Kraxeln vor Wandrutschen vor normal.
   const prevMode = p.mode;
   const climbDir = dir !== 0 ? dir : p.facing;
-  if (input.up && p.climbLeft > 0 && wallAt(b, grid, climbDir as -1 | 1)) {
+  // Steigt Kraxel noch schneller als das Kraxel-Tempo (Sprung), bleibt der Sprung unberührt: sonst ginge Höhe verloren.
+  const risingFast = b.vy < -t.climbSpeed;
+  if (input.up && p.climbLeft > 0 && !risingFast && wallAt(b, grid, climbDir as -1 | 1)) {
     p.mode = 'climb';
     p.wallDir = climbDir as -1 | 1;
   } else {
