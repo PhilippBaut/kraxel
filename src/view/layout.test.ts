@@ -76,3 +76,25 @@ describe('Pause-Trefferfläche', () => {
   });
 });
 
+describe('controlsArea', () => {
+  it('hochkant beginnt unter der Info-Zeile, quer 12 px unter der Oberkante', () => {
+    const p = computeLayout(390, 844, { top: 47, right: 0, bottom: 34, left: 0 });
+    expect(p.controlsArea.y).toBe(p.hud.y + p.hud.h);
+    const q = computeLayout(844, 390, { top: 20, right: 47, bottom: 21, left: 47 });
+    expect(q.controlsArea.y).toBe(Math.ceil(20 / q.scale) + 12);
+  });
+  it.each([
+    [375, 667, { top: 20, right: 0, bottom: 0, left: 0 }], [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }], [430, 932, { top: 59, right: 0, bottom: 34, left: 0 }],
+    [667, 375, { top: 0, right: 0, bottom: 0, left: 0 }], [844, 390, { top: 0, right: 47, bottom: 21, left: 47 }], [932, 430, { top: 0, right: 59, bottom: 21, left: 59 }],
+  ])('liegt in der Safe Area auf %ix%i', (w, h, ins) => {
+    const l = computeLayout(w, h, ins);
+    const a = l.controlsArea;
+    const sx = Math.ceil(ins.left / l.scale), sy = Math.ceil(ins.top / l.scale);
+    expect(a.x).toBeGreaterThanOrEqual(sx);
+    expect(a.y).toBeGreaterThanOrEqual(sy);
+    expect(a.x + a.w).toBeLessThanOrEqual(l.gameW - Math.ceil(ins.right / l.scale));
+    expect(a.y + a.h).toBeLessThanOrEqual(l.gameH - Math.ceil(ins.bottom / l.scale));
+    expect(a.w).toBeGreaterThan(0);
+    expect(a.h).toBeGreaterThan(0);
+  });
+});
