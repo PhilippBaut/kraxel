@@ -82,4 +82,11 @@ describe('validateLevel', () => {
     expect(items.length).toBe(2);
     for (const cx of items) expect(cx).toBeLessThan(goal.cx);
   });
+  it('Übungsplatz: zwei Stämme (waagerecht und senkrecht) fahren über dem Bach vor dem Ziel', () => {
+    const lv = parseLevel('uebungsplatz', LEVELS.uebungsplatz);
+    const goal = lv.spawns.find((s) => s.kind === 'goal')!;
+    expect(lv.platforms.map((p) => [p.axis, p.art])).toEqual([['h', 'stamm'], ['v', 'stamm']]);
+    for (const p of lv.platforms) expect(p.cx + p.width).toBeLessThan(goal.cx);
+    expect([...lv.cells].filter((c) => c === Cell.Water).length).toBeGreaterThanOrEqual(18);
+  });
 });

@@ -12,12 +12,12 @@ import type { PlayerState } from './player.ts';
 import { DEFAULT_TUNING } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
 
-/** `#` Ground, `B` Rock, `K` Crate, `U` CrateUsed, `V` HiddenCrate, `L` LeafPad, alles andere leer. */
+/** `#` Ground, `B` Rock, `K` Crate, `U` CrateUsed, `V` HiddenCrate, `L` LeafPad, `W` Water, alles andere leer. */
 export function gridFrom(rows: string[]): TileGrid {
   const width = Math.max(...rows.map((r) => r.length));
   const g = new TileGrid(width, rows.length);
   const map: Record<string, Cell> = {
-    '#': Cell.Ground, B: Cell.Rock, K: Cell.Crate, U: Cell.CrateUsed, V: Cell.HiddenCrate, L: Cell.LeafPad,
+    '#': Cell.Ground, B: Cell.Rock, K: Cell.Crate, U: Cell.CrateUsed, V: Cell.HiddenCrate, L: Cell.LeafPad, W: Cell.Water,
   };
   rows.forEach((row, cy) => {
     for (let cx = 0; cx < row.length; cx++) g.set(cx, cy, map[row[cx]!] ?? Cell.Empty);
@@ -55,9 +55,9 @@ export function runPlayer(p: PlayerState, grid: TileGrid, script: Script, t: Tun
   return { events, headCells, poundCells, minY, maxVy };
 }
 
-/** Baut ein Spiel aus Textzeilen (Kopfzeilen werden davor gesetzt). */
-export function gameFrom(rows: string[], session?: Session): GameState {
-  return createGame(parseLevel('test', `name: test\nworld: 1\n---\n${rows.join('\n')}`), session);
+/** Baut ein Spiel aus Textzeilen (Kopfzeilen werden davor gesetzt). `header`: weitere Kopfzeilen, z. B. `plattform: 4 8 3 h 6 2 stamm`. */
+export function gameFrom(rows: string[], session?: Session, header: string[] = []): GameState {
+  return createGame(parseLevel('test', ['name: test', 'world: 1', ...header, '---', ...rows].join('\n')), session);
 }
 
 /** Setzt Kraxel mit den Füßen auf die Unterkante der Zelle, waagerecht mittig, ohne Tempo. Helm und übriger Zustand bleiben, `grounded` erkennt der nächste Schritt. */

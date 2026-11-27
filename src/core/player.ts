@@ -2,6 +2,7 @@
 import { TILE } from '../config.ts';
 import { isOnGround, moveBody, wallAt } from './collide.ts';
 import type { TileGrid } from './grid.ts';
+import type { PlatformState } from './platforms.ts';
 import { DEFAULT_TUNING, jumpGravity, jumpVelocity, LEAF_BOUNCE_HELD_TILES, LEAF_BOUNCE_TILES } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
 import { Cell } from './types.ts';
@@ -60,7 +61,8 @@ function approach(v: number, target: number, delta: number): number {
   return v < target ? Math.min(v + delta, target) : Math.max(v - delta, target);
 }
 
-export function stepPlayer(p: PlayerState, input: InputFrame, grid: TileGrid, t: Tuning, dt: number): PlayerStepResult {
+/** `platforms`: bewegte Plattformen, die von oben tragen wie Boden. */
+export function stepPlayer(p: PlayerState, input: InputFrame, grid: TileGrid, t: Tuning, dt: number, platforms: readonly PlatformState[] = []): PlayerStepResult {
   const events: GameEvent[] = [];
   const poundCells: Array<[number, number]> = [];
   const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
@@ -71,21 +73,21 @@ export function stepPlayer(p: PlayerState, input: InputFrame, grid: TileGrid, t:
 
   let headCells: Array<[number, number]> = [];
   switch (p.mode) {
-    case 'poundHang': stepPoundHang(p, grid, t, dt, events, poundCells); break;
-    case 'pound': stepPound(p, grid, t, dt, events, poundCells); break;
+    case 'poundHang': stepPoundHang(p, grid, platforms, t, dt, events, poundCells); break;
+    case 'pound': stepPound(p, grid, platforms, t, dt, events, poundCells); break;
     case 'poundRecover':
       if (!stepPoundRecover(p, dt)) break;
-      headCells = stepFree(p, input, dir, grid, t, dt, events);
+      headCells = stepFree(p, input, dir, grid, platforms, t, dt, events);
       break;
     case 'dead': case 'goal': break;
-    default: headCells = stepFree(p, input, dir, grid, t, dt, events);
+    default: headCells = stepFree(p, input, dir, grid, platforms, t, dt, events);
   }
   if (p.hurtTimer > 0 && p.mode !== 'dead') p.anim = 'hurt';
   return { events, headCells, poundCells };
 }
 
 /** normal, wallSlide und climb: alles, was Kraxel nicht in einer Stampf-Phase ist. */
-function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid, t: Tuning, dt: number, events: GameEvent[]): Array<[number, number]> {
+function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid, platforms: readonly PlatformState[], t: Tuning, dt: number, events: GameEvent[]): Array<[number, number]> {
   const b = p.body;
   p.coyote = p.grounded ? t.coyoteTime : Math.max(0, p.coyote - dt);
   p.wallLock = Math.max(0, p.wallLock - dt);
@@ -117,7 +119,7 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
   // Stampfen: nur frei in der Luft und nur, wenn „unten“ ohne Seite neu gedrückt wird (Flanke von down, dabei weder links noch rechts).
   // Schräg unten (Daumen rutscht am Steuerkreuz) stampft nie; wer unten hält und die Seite loslässt, muss neu drücken.
   // Der Wechsel passiert vor der Bewegung.
-  if (p.mode === 'normal' && !p.grounded && input.downPressed && !input.left && !input.right && !isOnGround(b, grid)) {
+  if (p.mode === 'normal' && !p.grounded && input.downPressed && !input.left && !input.right && !isOnGround(b, grid, platforms)) {
     startPound(p, t, events);
     return [];
   }
@@ -160,7 +162,7 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
 
   const y0 = b.y;
   const vyBefore = b.vy;
-  const res = moveBody(b, dt, grid, t.cornerCorrection);
+  const res = moveBody(b, dt, grid, t.cornerCorrection, platforms);
   if (p.mode === 'climb') {
     p.climbLeft = Math.max(0, p.climbLeft - (y0 - b.y));
     if (p.climbLeft < 1e-6) p.climbLeft = 0;
@@ -171,7 +173,7 @@ function stepFree(p: PlayerState, input: InputFrame, dir: number, grid: TileGrid
   }
 
   const wasGrounded = p.grounded;
-  p.grounded = b.vy >= 0 && isOnGround(b, grid);
+  p.grounded = b.vy >= 0 && isOnGround(b, grid, platforms);
   // Landung von oben (aus der Luft, fallend) auf ein Blätterpolster: federn statt landen.
   const pad = p.grounded && !wasGrounded && vyBefore > 0 ? padUnderFeet(b, grid) : null;
   if (pad) leafBounce(p, t, input.jump, pad, events);
@@ -306,21 +308,21 @@ function startPound(p: PlayerState, t: Tuning, events: GameEvent[]): void {
 }
 
 /** Innehalten in der Luft. Danach geht es ohne Pause in den Fall über. */
-function stepPoundHang(p: PlayerState, grid: TileGrid, t: Tuning, dt: number, events: GameEvent[], poundCells: Array<[number, number]>): void {
+function stepPoundHang(p: PlayerState, grid: TileGrid, platforms: readonly PlatformState[], t: Tuning, dt: number, events: GameEvent[], poundCells: Array<[number, number]>): void {
   p.modeTimer -= dt;
   p.anim = 'pound';
   if (p.modeTimer > 1e-9) return;
   p.mode = 'pound';
-  stepPound(p, grid, t, dt, events, poundCells);
+  stepPound(p, grid, platforms, t, dt, events, poundCells);
 }
 
 /** Schneller Fall ohne Begrenzung und ohne Seitensteuerung bis zur Landung. */
-function stepPound(p: PlayerState, grid: TileGrid, t: Tuning, dt: number, events: GameEvent[], poundCells: Array<[number, number]>): void {
+function stepPound(p: PlayerState, grid: TileGrid, platforms: readonly PlatformState[], t: Tuning, dt: number, events: GameEvent[], poundCells: Array<[number, number]>): void {
   const b = p.body;
   b.vx = 0;
   b.vy = t.poundSpeed;
   p.anim = 'pound';
-  const res = moveBody(b, dt, grid, 0);
+  const res = moveBody(b, dt, grid, 0, platforms);
   if (!res.down) return;
   const row = Math.round((b.y + b.h) / TILE);
   // Stampfen auf ein Polster: hoch federn (hoher Wert), das Stampfen ist damit vorbei.
@@ -331,8 +333,11 @@ function stepPound(p: PlayerState, grid: TileGrid, t: Tuning, dt: number, events
     p.anim = 'jump';
     return;
   }
-  for (let cx = Math.floor(b.x / TILE); cx <= Math.floor((b.x + b.w - 1e-9) / TILE); cx++) {
-    if (grid.isSolid(cx, row)) poundCells.push([cx, row]);
+  // Auf einer Plattform landet Kraxel wie auf Boden, es gibt nur keine Zellen zu treffen.
+  if (isOnGround(b, grid)) {
+    for (let cx = Math.floor(b.x / TILE); cx <= Math.floor((b.x + b.w - 1e-9) / TILE); cx++) {
+      if (grid.isSolid(cx, row)) poundCells.push([cx, row]);
+    }
   }
   events.push({ type: 'poundLand', x: b.x + b.w / 2, y: b.y + b.h });
   p.mode = 'poundRecover';

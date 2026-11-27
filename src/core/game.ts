@@ -6,7 +6,9 @@ import { hitCell, primaryCell, stepBlocks } from './blocks.ts';
 import { TileGrid } from './grid.ts';
 import type { EntitySpawn, LevelData } from './level.ts';
 import type { ExitKind } from './save.ts';
-import { isOnGround, moveBody, overlaps } from './collide.ts';
+import { inWater, isOnGround, moveBody, overlaps } from './collide.ts';
+import { carryBody, createPlatforms, standingOn, stepPlatforms } from './platforms.ts';
+import type { PlatformState } from './platforms.ts';
 import { createPlayer, stepPlayer } from './player.ts';
 import type { PlayerState } from './player.ts';
 import { collectPickups, createPickup, stepPickups } from './pickups.ts';
@@ -16,7 +18,7 @@ import type { Pebble } from './pebbles.ts';
 import { jumpGravity } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
 import { Cell } from './types.ts';
-import type { CrateContent, GameEvent, InputFrame, SpecialItem } from './types.ts';
+import type { Body, CrateContent, GameEvent, InputFrame, SpecialItem } from './types.ts';
 
 export type Phase = 'playing' | 'dying' | 'goal' | 'gameOver';
 export interface Session { lives: number; crystals: number; time: number; edelweiss: [boolean, boolean, boolean] }
@@ -24,6 +26,8 @@ export interface GameState {
   level: LevelData; grid: TileGrid; crates: Map<number, CrateContent>;
   multi: Map<number, { left: number; timer: number }>;
   player: PlayerState; pickups: PickupState[]; enemies: EnemyState[];
+  /** Bewegte Plattformen; ihre Lage ändert sich in jedem Schritt (`stepPlatforms`). */
+  platforms: PlatformState[];
   /** Fußhöhe (Unterkante) des Spielers vor dem letzten Schritt, fürs Draufspringen. */
   playerPrevBottom: number;
   checkpoint: number; phase: Phase; phaseTimer: number; session: Session; startSession: Session;
@@ -69,7 +73,7 @@ export function createGame(level: LevelData, session: Session = createSession(),
   const state: GameState = {
     level, grid: TileGrid.fromLevel(level), crates: new Map(level.crates), multi: new Map(),
     player: createPlayer(level.start.cx, level.start.cy),
-    pickups: initialPickups(level, session), enemies: initialEnemies(level),
+    pickups: initialPickups(level, session), enemies: initialEnemies(level), platforms: createPlatforms(level.platforms),
     playerPrevBottom: 0, pebbles: [], pebbleCooldown: 0,
     checkpoint: -1, phase: 'playing', phaseTimer: 0, session, startSession: copySession(session),
     startHelm: opts.helm === true || (opts.special ?? null) !== null, startSpecial: opts.special ?? null,
@@ -115,6 +119,7 @@ export function respawn(s: GameState): void {
   s.multi = new Map();
   s.pickups = initialPickups(level, s.session);
   s.enemies = initialEnemies(level);
+  s.platforms = createPlatforms(level.platforms);
   s.pebbles = [];
   s.pebbleCooldown = 0;
   const cp = level.spawns.find((sp) => sp.kind === 'checkpoint' && sp.index === s.checkpoint);
@@ -201,8 +206,8 @@ function stepGoal(s: GameState, t: Tuning, dt: number): void {
   s.phaseTimer = Math.max(0, s.phaseTimer - dt);
   b.vx = 0;
   b.vy = Math.min(b.vy + jumpGravity(t) * t.fallGravityMul * dt, t.maxFallSpeed);
-  moveBody(b, dt, s.grid);
-  p.grounded = isOnGround(b, s.grid);
+  moveBody(b, dt, s.grid, 0, s.platforms);
+  p.grounded = isOnGround(b, s.grid, s.platforms);
 }
 
 /** Tod: nur der Fall der toten Kraxel läuft. Danach Game Over oder Neustart. */
@@ -231,7 +236,7 @@ function hitPoundCells(s: GameState, cells: Array<[number, number]>): GameEvent[
   const main = primaryCell(s.player.body, others);
   if (main) events.push(...hitCell(s, main[0], main[1], 'above'));
   const p = s.player;
-  if (p.mode === 'poundRecover' && !isOnGround(p.body, s.grid)) {
+  if (p.mode === 'poundRecover' && !isOnGround(p.body, s.grid, s.platforms)) {
     p.mode = 'pound';
     p.grounded = false;
   }
@@ -249,6 +254,22 @@ function stepEnzian(s: GameState, t: Tuning, dt: number): GameEvent[] {
   return [{ type: 'enzianEnd' }];
 }
 
+/** Plattformen fahren einen Schritt und nehmen mit, was vorher darauf stand: Kraxel, Gegner, Items. Das Mitnehmen läuft über `moveBody`, Wände und Decken blocken also. */
+function stepPlatformsAndRiders(s: GameState, dt: number): void {
+  if (s.platforms.length === 0) return;
+  const p = s.player;
+  const bodies: Body[] = [];
+  if (p.body.vy >= 0 && p.mode !== 'dead' && p.mode !== 'goal') bodies.push(p.body);
+  for (const e of s.enemies) if (e.alive) bodies.push(e.body);
+  for (const it of s.pickups) if (it.kind === 'item' && !it.taken && it.emerge <= 0) bodies.push(it.body);
+  const riding = bodies.map((b) => standingOn(b, s.platforms)); // mit der Lage vor der Fahrt
+  stepPlatforms(s.platforms, dt);
+  bodies.forEach((b, i) => {
+    const pl = riding[i];
+    if (pl) carryBody(b, pl, s.grid);
+  });
+}
+
 export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewWindow, dt: number = STEP): GameEvent[] {
   if (s.phase === 'dying') return stepDying(s, t, dt);
   if (s.phase === 'goal') {
@@ -256,20 +277,22 @@ export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewW
     return [];
   }
   if (s.phase !== 'playing') return [];
+  stepPlatformsAndRiders(s, dt);
   s.playerPrevBottom = s.player.body.y + s.player.body.h;
-  const r = stepPlayer(s.player, input, s.grid, t, dt);
+  const r = stepPlayer(s.player, input, s.grid, t, dt, s.platforms);
   const events = [...r.events];
   const head = primaryCell(s.player.body, r.headCells);
   if (head) events.push(...hitCell(s, head[0], head[1], 'below'));
   events.push(...hitPoundCells(s, r.poundCells));
   stepBlocks(s, dt);
   events.push(...stepEnzian(s, t, dt));
-  stepPickups(s.pickups, s.grid, dt);
-  stepEnemies(s.enemies, s.grid, view, dt);
+  stepPickups(s.pickups, s.grid, dt, s.platforms);
+  stepEnemies(s.enemies, s.grid, view, dt, s.platforms);
   if (input.actionPressed) events.push(...shoot(s));
   events.push(...stepPebbles(s, dt));
   events.push(...resolvePlayerEnemies(s, input, t));
   if (s.phase !== 'playing') return events; // gestorben: nichts mehr einsammeln
+  if (inWater(s.player.body, s.grid)) return [...events, ...killPlayer(s)]; // Bach: tödlich wie eine Grube, Enzian und Schonzeit helfen nicht
   events.push(...collectPickups(s));
   s.session.time += dt;
   if (s.player.body.y > s.grid.height * TILE + TILE) return [...events, ...killPlayer(s)];

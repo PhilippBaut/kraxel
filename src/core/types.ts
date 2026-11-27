@@ -1,7 +1,7 @@
 // Gemeinsame Typen der Spiellogik. Kein Phaser, kein DOM.
 import type { ExitKind } from './save.ts';
 
-export const Cell = { Empty: 0, Ground: 1, Rock: 2, Crate: 3, CrateUsed: 4, HiddenCrate: 5, LeafPad: 6 } as const;
+export const Cell = { Empty: 0, Ground: 1, Rock: 2, Crate: 3, CrateUsed: 4, HiddenCrate: 5, LeafPad: 6, Water: 7 } as const;
 export type Cell = (typeof Cell)[keyof typeof Cell];
 
 export interface Held { left: boolean; right: boolean; up: boolean; down: boolean; jump: boolean; action: boolean }

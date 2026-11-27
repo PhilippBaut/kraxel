@@ -6,6 +6,8 @@ import type { EnemyState } from '../core/enemies.ts';
 import type { GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import type { PickupState } from '../core/pickups.ts';
+import type { PlatformState } from '../core/platforms.ts';
+import { platformSprite, WATER_TOP_FRAMES } from '../gfx/sprites.ts';
 import { Cell } from '../core/types.ts';
 import type { GameEvent } from '../core/types.ts';
 import { playerFlipX, playerFrame } from './player-frame.ts';
@@ -14,7 +16,9 @@ export { playerFrame } from './player-frame.ts';
 
 type Image = Phaser.GameObjects.Image;
 
-const DEPTH = { marker: 1, pickup: 2, enemy: 4, block: 3, player: 5, fx: 6 } as const;
+const DEPTH = { marker: 1, water: 1.5, pickup: 2, enemy: 4, block: 3, platform: 3, player: 5, fx: 6 } as const;
+/** Wasseroberfläche: so oft pro Sekunde wechselt das Wellenbild. */
+const WATER_FPS = 2.5;
 const BUMP_TIME = 0.15, BUMP_PX = 4;
 /** Kristall aus der Kiste: steigt 24 px auf und verschwindet dann mit Funkeln. */
 const POP_TIME = 0.4, POP_PX = 24, POP_SPIN = 22;
@@ -66,6 +70,12 @@ export class WorldView {
   private readonly fx: Phaser.GameObjects.Graphics;
   private readonly blocks = new Map<number, Block>();
   private pickups: Image[] = [];
+  /** Plattform-Bilder in der Reihenfolge von `GameState.platforms`; Lage und Bild kommen jeden Frame aus dem Zustand. */
+  private platforms: Image[] = [];
+  /** Oberflächen-Kacheln des Bachs (wechseln im Takt das Wellenbild) und das zuletzt gesetzte Bild. */
+  private waterTops: Image[] = [];
+  private waterImages: Image[] = [];
+  private waterFrame = 0;
   private pebbles: Image[] = [];
   /** Zähler für die Glitzerpunkte um Kraxel (Enzian) und Zeit des letzten. */
   private sparkCount = 0;
@@ -97,6 +107,12 @@ export class WorldView {
     this.blocks.clear();
     for (const img of this.pickups) img.destroy();
     this.pickups = [];
+    for (const img of this.platforms) img.destroy();
+    for (const img of this.waterImages) img.destroy();
+    this.platforms = s.platforms.map((p) => this.scene.add.image(p.x, p.y, platformSprite(p.spec.art, p.spec.width)).setOrigin(0).setDepth(DEPTH.platform));
+    this.waterImages = [];
+    this.waterTops = [];
+    this.waterFrame = 0;
     for (const img of this.enemies) img.destroy();
     this.enemies = [];
     for (const img of this.pebbles) img.destroy();
@@ -120,7 +136,10 @@ export class WorldView {
     }
     const g = s.grid;
     for (let cy = 0; cy < g.height; cy++) {
-      for (let cx = 0; cx < g.width; cx++) if (blockTexture(g.get(cx, cy))) this.addBlock(cx, cy);
+      for (let cx = 0; cx < g.width; cx++) {
+        if (blockTexture(g.get(cx, cy))) this.addBlock(cx, cy);
+        else if (g.get(cx, cy) === Cell.Water) this.addWater(cx, cy);
+      }
     }
   }
 
@@ -158,6 +177,8 @@ export class WorldView {
     this.syncPlayer(s, time);
     this.cairns.forEach((img, i) => img.setTexture(i <= s.checkpoint ? 'cairnFlag' : 'cairn'));
     this.syncBlocks(time);
+    this.syncPlatforms(s.platforms);
+    this.syncWater(time);
     this.syncPickups(s.pickups, time);
     this.syncEnemies(s.enemies, time);
     this.syncPebbles(s.pebbles);
@@ -205,6 +226,26 @@ export class WorldView {
   private addBlock(cx: number, cy: number): void {
     const img = this.scene.add.image(cx * TILE, cy * TILE, 'crate').setOrigin(0).setDepth(DEPTH.block);
     this.blocks.set(this.grid.index(cx, cy), { img, bumpAt: -Infinity });
+  }
+
+  /** Oberfläche, wenn darüber kein Wasser liegt, sonst Tiefe. */
+  private addWater(cx: number, cy: number): void {
+    const top = this.grid.get(cx, cy - 1) !== Cell.Water;
+    const img = this.scene.add.image(cx * TILE, cy * TILE, top ? WATER_TOP_FRAMES[0]! : 'water').setOrigin(0).setDepth(DEPTH.water);
+    this.waterImages.push(img);
+    if (top) this.waterTops.push(img);
+  }
+
+  /** Alle Oberflächen wechseln gemeinsam das Wellenbild (ohne Versatz, damit die Wellen an den Kachelrändern passen). */
+  private syncWater(time: number): void {
+    const frame = Math.floor(time * WATER_FPS) % WATER_TOP_FRAMES.length;
+    if (frame === this.waterFrame) return;
+    this.waterFrame = frame;
+    for (const img of this.waterTops) img.setTexture(WATER_TOP_FRAMES[frame]!);
+  }
+
+  private syncPlatforms(list: readonly PlatformState[]): void {
+    for (let i = 0; i < list.length; i++) this.platforms[i]?.setPosition(Math.round(list[i]!.x), Math.round(list[i]!.y));
   }
 
   private bump(cx: number, cy: number, now: number): void {

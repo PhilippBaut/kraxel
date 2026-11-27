@@ -1,9 +1,11 @@
 // Gegner: Krabbelkäfer und Stachelschnecke.
 import { TILE } from '../config.ts';
-import { isOnGround, moveBody, overlaps } from './collide.ts';
+import { inWater, isOnGround, moveBody, overlaps } from './collide.ts';
 import { damagePlayer } from './game.ts';
 import type { GameState, ViewWindow } from './game.ts';
 import type { TileGrid } from './grid.ts';
+import { platformTopAt } from './platforms.ts';
+import type { PlatformState } from './platforms.ts';
 import type { EntitySpawn } from './level.ts';
 import type { Tuning } from './tuning.ts';
 import type { Body, GameEvent, InputFrame } from './types.ts';
@@ -37,14 +39,14 @@ function nearView(b: Body, view: ViewWindow): boolean {
   return b.x + b.w > view.x - ACTIVATE_MARGIN && b.x < view.x + view.w + ACTIVATE_MARGIN;
 }
 
-/** Steht vor dem Gegner noch Boden? Geprüft wird unter seiner Vorderkante. */
-function groundAhead(e: EnemyState, grid: TileGrid): boolean {
+/** Steht vor dem Gegner noch Boden (oder eine Plattform)? Geprüft wird unter seiner Vorderkante. */
+function groundAhead(e: EnemyState, grid: TileGrid, platforms: readonly PlatformState[]): boolean {
   const b = e.body;
   const x = e.dir > 0 ? b.x + b.w : b.x - 0.01;
-  return grid.isSolid(Math.floor(x / TILE), Math.floor((b.y + b.h + 1) / TILE));
+  return grid.isSolid(Math.floor(x / TILE), Math.floor((b.y + b.h + 1) / TILE)) || platformTopAt(x, b.y + b.h, platforms) !== null;
 }
 
-export function stepEnemies(list: EnemyState[], grid: TileGrid, view: ViewWindow, dt: number): void {
+export function stepEnemies(list: EnemyState[], grid: TileGrid, view: ViewWindow, dt: number, platforms: readonly PlatformState[] = []): void {
   for (const e of list) {
     if (!e.alive) {
       e.defeatTimer = Math.max(0, e.defeatTimer - dt);
@@ -55,12 +57,13 @@ export function stepEnemies(list: EnemyState[], grid: TileGrid, view: ViewWindow
       e.active = true;
     }
     const b = e.body, spec = ENEMY_SPEC[e.kind];
-    if (spec.turnAtEdges && isOnGround(b, grid) && !groundAhead(e, grid)) e.dir = e.dir > 0 ? -1 : 1;
+    if (spec.turnAtEdges && isOnGround(b, grid, platforms) && !groundAhead(e, grid, platforms)) e.dir = e.dir > 0 ? -1 : 1;
     b.vx = e.dir * spec.speed;
     b.vy = Math.min(b.vy + GRAVITY * dt, MAX_FALL);
-    const r = moveBody(b, dt, grid);
+    const r = moveBody(b, dt, grid, 0, platforms);
     if (r.left || r.right) e.dir = r.left ? 1 : -1;
     if (b.y > grid.height * TILE) e.alive = false; // unter das Level gefallen
+    if (inWater(b, grid)) e.alive = false; // im Bach verschwindet er ohne Besiegt-Effekt (`defeatTimer` bleibt 0)
   }
 }
 

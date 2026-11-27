@@ -1,10 +1,11 @@
 // Kristalle, Edelweiß und Items (Helm, Schleuder, Goldener Enzian) als einsammelbare Körper.
 import { TILE } from '../config.ts';
-import { moveBody, overlaps } from './collide.ts';
+import { inWater, moveBody, overlaps } from './collide.ts';
 import { addCrystals } from './game.ts';
 import { ENZIAN_TIME } from './player.ts';
 import type { GameState } from './game.ts';
 import type { TileGrid } from './grid.ts';
+import type { PlatformState } from './platforms.ts';
 import type { EntitySpawn } from './level.ts';
 import type { Body, GameEvent, ItemKind } from './types.ts';
 
@@ -46,7 +47,7 @@ export function spawnItem(item: ItemKind, cx: number, cy: number): PickupState {
   };
 }
 
-export function stepPickups(list: PickupState[], grid: TileGrid, dt: number): void {
+export function stepPickups(list: PickupState[], grid: TileGrid, dt: number, platforms: readonly PlatformState[] = []): void {
   for (const p of list) {
     if (p.kind !== 'item' || p.taken) continue;
     const b = p.body;
@@ -59,9 +60,9 @@ export function stepPickups(list: PickupState[], grid: TileGrid, dt: number): vo
     }
     b.vx = p.dir * ITEM_SPEED;
     b.vy = Math.min(b.vy + ITEM_GRAVITY * dt, ITEM_MAX_FALL);
-    const r = moveBody(b, dt, grid);
+    const r = moveBody(b, dt, grid, 0, platforms);
     if (r.left || r.right) p.dir = r.left ? 1 : -1;
-    if (b.y > grid.height * TILE) p.taken = true; // aus dem Level gefallen
+    if (b.y > grid.height * TILE || inWater(b, grid)) p.taken = true; // aus dem Level gefallen oder im Bach versunken
   }
 }
 

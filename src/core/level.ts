@@ -2,12 +2,15 @@
 import { Cell } from './types.ts';
 import type { CrateContent } from './types.ts';
 import { TileGrid } from './grid.ts';
+import type { PlatformSpec } from './platforms.ts';
 
 export type SpawnKind = 'crystal' | 'edelweiss' | 'beetle' | 'snail' | 'checkpoint' | 'goal' | 'secretGoal';
 export interface EntitySpawn { kind: SpawnKind; cx: number; cy: number; index: number }
 export interface LevelData {
   id: string; name: string; world: number; width: number; height: number;
   cells: Uint8Array; crates: Map<number, CrateContent>; spawns: EntitySpawn[]; start: { cx: number; cy: number };
+  /** Bewegte Plattformen aus den Kopfzeilen `plattform:`. */
+  platforms: PlatformSpec[];
   /** Wie viele `P` im Text standen; `validateLevel` verlangt genau eines. */
   startCount: number;
 }
@@ -25,6 +28,8 @@ const CELL_CHARS: Record<string, Cell> = {
   '#': Cell.Ground, B: Cell.Rock, K: Cell.Crate, M: Cell.Crate, H: Cell.Crate, J: Cell.Crate, E: Cell.Crate, V: Cell.HiddenCrate,
   /** L: Blätterpolster, fest wie Boden, federt von oben. */
   L: Cell.LeafPad,
+  /** W: Bachwasser, nicht fest; Berührung tötet. */
+  W: Cell.Water,
 };
 const CRATE_CHARS: Record<string, CrateContent> = {
   K: { kind: 'crystal' }, M: { kind: 'multi' }, H: { kind: 'item', item: 'helm' },
@@ -38,11 +43,27 @@ const SPAWN_CHARS: Record<string, { kind: SpawnKind; index: number }> = {
   G: { kind: 'secretGoal', index: 0 },
 };
 
+/** `cx cy breite achse weg tempo art`, z. B. `4 12 3 h 6 2 stamm`. Zahlen wie `1.5` und negativer Weg sind erlaubt; Breite, Weg und Tempo prüft `validateLevel`. */
+function parsePlatform(value: string, line: number): PlatformSpec {
+  const f = value.trim().split(/\s+/);
+  if (f.length !== 7) throw new LevelError('plattform braucht: cx cy breite achse weg tempo art', line);
+  const [cx, cy, width, axis, travel, speed, art] = f;
+  const num = (v: string, what: string): number => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) throw new LevelError(`plattform: ${what} "${v}" ist keine Zahl`, line);
+    return n;
+  };
+  if (axis !== 'h' && axis !== 'v') throw new LevelError(`plattform: Achse "${axis}" muss h oder v sein`, line);
+  if (art !== 'stamm' && art !== 'stein') throw new LevelError(`plattform: Art "${art}" muss stamm oder stein sein`, line);
+  return { cx: num(cx, 'cx'), cy: num(cy, 'cy'), width: num(width, 'Breite'), axis, travel: num(travel, 'Weg'), speed: num(speed, 'Tempo'), art };
+}
+
 export function parseLevel(id: string, text: string): LevelData {
   const lines = text.replace(/\r/g, '').split('\n');
   const sep = lines.indexOf('---');
   if (sep < 0) throw new LevelError('Trennzeile --- fehlt', lines.length);
   let name = id, world = 1;
+  const platforms: PlatformSpec[] = [];
   for (let i = 0; i < sep; i++) {
     const m = /^(\w+):\s*(.*)$/.exec(lines[i]);
     if (!m) {
@@ -53,7 +74,8 @@ export function parseLevel(id: string, text: string): LevelData {
     else if (m[1] === 'world') {
       world = Number(m[2]);
       if (!Number.isInteger(world) || world < 1) throw new LevelError('world muss eine ganze Zahl ab 1 sein', i + 1);
-    } else throw new LevelError(`Unbekannte Kopfzeile "${m[1]}"`, i + 1);
+    } else if (m[1] === 'plattform') platforms.push(parsePlatform(m[2], i + 1));
+    else throw new LevelError(`Unbekannte Kopfzeile "${m[1]}"`, i + 1);
   }
   const rows = lines.slice(sep + 1);
   while (rows.length && rows[rows.length - 1].trim() === '') rows.pop();
@@ -86,7 +108,7 @@ export function parseLevel(id: string, text: string): LevelData {
 
   // Steinmännchen zählen von links nach rechts.
   spawns.filter((s) => s.kind === 'checkpoint').sort((a, b) => a.cx - b.cx).forEach((s, i) => { s.index = i; });
-  return { id, name, world, width, height, cells, crates, spawns, start, startCount };
+  return { id, name, world, width, height, cells, crates, spawns, start, platforms, startCount };
 }
 
 export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requireGoal: boolean }): string[] {
@@ -111,9 +133,46 @@ export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requ
   if (l.startCount > 0 && g.isSolid(l.start.cx, l.start.cy)) problems.push('Der Start liegt in einer festen Zelle.');
   for (const s of l.spawns) {
     if (g.isSolid(s.cx, s.cy)) problems.push(`${s.kind} bei ${s.cx},${s.cy} liegt in einer festen Zelle.`);
-    if ((s.kind === 'beetle' || s.kind === 'snail') && !g.isSolid(s.cx, s.cy + 1)) {
+    if ((s.kind === 'beetle' || s.kind === 'snail') && !g.isSolid(s.cx, s.cy + 1) && !startsOnPlatform(l, s)) {
       problems.push(`${s.kind} bei ${s.cx},${s.cy} hat keinen festen Boden darunter.`);
     }
   }
+  l.platforms.forEach((p, i) => problems.push(...platformProblems(l, g, p, i + 1)));
   return problems;
+}
+
+/** Steht die Figur auf dem Startplatz einer Plattform (Plattform liegt in der Zelle darunter)? */
+function startsOnPlatform(l: LevelData, s: EntitySpawn): boolean {
+  return l.platforms.some((p) => p.cy === s.cy + 1 && s.cx >= p.cx && s.cx < p.cx + p.width);
+}
+
+/** Breite 2–4, Achse und Art, Weg und Tempo; der ganze Fahrweg liegt im Level und schneidet keine feste Zelle (nichts wird zerquetscht). */
+function platformProblems(l: LevelData, g: TileGrid, p: PlatformSpec, n: number): string[] {
+  const out: string[] = [];
+  const name = `Plattform ${n} (${p.cx},${p.cy})`;
+  if (!Number.isInteger(p.cx) || !Number.isInteger(p.cy)) out.push(`${name}: Position muss aus ganzen Kacheln bestehen.`);
+  if (!Number.isInteger(p.width) || p.width < 2 || p.width > 4) out.push(`${name}: Breite ${p.width} liegt nicht in 2 bis 4.`);
+  if (p.axis !== 'h' && p.axis !== 'v') out.push(`${name}: Achse "${String(p.axis)}" muss h oder v sein.`);
+  if (p.art !== 'stamm' && p.art !== 'stein') out.push(`${name}: Art "${String(p.art)}" muss stamm oder stein sein.`);
+  if (!(p.travel !== 0 && Number.isFinite(p.travel))) out.push(`${name}: Der Weg darf nicht 0 sein.`);
+  if (!(p.speed > 0 && Number.isFinite(p.speed))) out.push(`${name}: Das Tempo muss größer als 0 sein.`);
+  if (out.length > 0) return out;
+  // Überstrichene Zellen: Start und Ende, dazwischen alles.
+  const horizontal = p.axis === 'h';
+  const lo = Math.min(0, p.travel), hi = Math.max(0, p.travel);
+  const x0 = p.cx + (horizontal ? Math.floor(lo) : 0), x1 = p.cx + p.width - 1 + (horizontal ? Math.ceil(hi) : 0);
+  const y0 = p.cy + (horizontal ? 0 : Math.floor(lo)), y1 = p.cy + (horizontal ? 0 : Math.ceil(hi));
+  if (x0 < 0 || x1 >= l.width || y0 < 0 || y1 >= l.height) {
+    out.push(`${name}: Der Fahrweg liegt nicht ganz im Level.`);
+    return out;
+  }
+  for (let cy = y0; cy <= y1; cy++) {
+    for (let cx = x0; cx <= x1; cx++) {
+      if (g.isSolid(cx, cy) || g.get(cx, cy) === Cell.HiddenCrate) {
+        out.push(`${name}: Der Fahrweg schneidet die feste Zelle ${cx},${cy}.`);
+        return out;
+      }
+    }
+  }
+  return out;
 }

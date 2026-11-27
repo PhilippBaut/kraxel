@@ -3,9 +3,13 @@
 import { Cell } from './types.ts';
 import type { Body, Rect } from './types.ts';
 import type { TileGrid } from './grid.ts';
+import type { PlatformState } from './platforms.ts';
 
 const TILE = 16;
 const MAX_STEP = 8;
+const NO_PLATFORMS: readonly PlatformState[] = [];
+/** So viel Spielraum (px) beim Vergleich von Fußhöhe und Oberkante einer Plattform. */
+const TOP_EPS = 1e-6;
 
 export interface MoveResult {
   left: boolean; right: boolean; up: boolean; down: boolean;
@@ -39,11 +43,28 @@ function ceilingCells(grid: TileGrid, x0: number, y0: number, x1: number, prevTo
   return out;
 }
 
+/** Trägt die Oberseite der Plattform den Körper? Füße höchstens 1 px darüber oder bündig, waagerecht überlappend (Berührung zählt nicht). */
+export function platformSupports(body: Rect, p: PlatformState): boolean {
+  const bottom = body.y + body.h;
+  return bottom <= p.y + TOP_EPS && bottom >= p.y - 1 && body.x < p.x + p.spec.width * TILE && body.x + body.w > p.x;
+}
+
+/** Plattform, auf die der Körper in diesem Teilschritt fällt: Füße waren oberhalb der Oberkante (bei aufwärts fahrender Plattform eine Fahrstrecke tiefer, weil sie dem Körper entgegenkam) und sind jetzt auf oder darunter. */
+function landingPlatform(body: Rect, prevBottom: number, list: readonly PlatformState[]): PlatformState | null {
+  const bottom = body.y + body.h;
+  for (const p of list) {
+    if (body.x >= p.x + p.spec.width * TILE || body.x + body.w <= p.x) continue;
+    if (bottom >= p.y - TOP_EPS && prevBottom <= p.y + Math.max(0, -p.dy) + TOP_EPS) return p;
+  }
+  return null;
+}
+
 function stepCount(d: number): number {
   return Math.max(1, Math.ceil(Math.abs(d) / MAX_STEP));
 }
 
-export function moveBody(body: Body, dt: number, grid: TileGrid, cornerCorrection = 0): MoveResult {
+/** `platforms`: bewegte Plattformen, die nur von oben tragen (von unten und von der Seite geht man hindurch). */
+export function moveBody(body: Body, dt: number, grid: TileGrid, cornerCorrection = 0, platforms: readonly PlatformState[] = NO_PLATFORMS): MoveResult {
   const res: MoveResult = { left: false, right: false, up: false, down: false, headCells: [] };
 
   // X
@@ -77,6 +98,11 @@ export function moveBody(body: Body, dt: number, grid: TileGrid, cornerCorrectio
           body.y = Math.floor((body.y + body.h) / TILE) * TILE - body.h;
           body.vy = 0; res.down = true; break;
         }
+        const pl = landingPlatform(body, prevTop + body.h, platforms);
+        if (pl) {
+          body.y = pl.y - body.h;
+          body.vy = 0; res.down = true; break;
+        }
       } else {
         const hits = ceilingCells(grid, body.x, body.y, body.x + body.w, prevTop, body.y + 1e-9);
         if (hits.length === 0) continue;
@@ -106,8 +132,18 @@ function correctCorner(body: Body, grid: TileGrid, hits: Array<[number, number]>
   return true;
 }
 
-export function isOnGround(body: Body, grid: TileGrid): boolean {
-  return solidIn(grid, body.x, body.y + body.h, body.x + body.w, body.y + body.h + 1);
+export function isOnGround(body: Body, grid: TileGrid, platforms: readonly PlatformState[] = NO_PLATFORMS): boolean {
+  return solidIn(grid, body.x, body.y + body.h, body.x + body.w, body.y + body.h + 1) || platforms.some((p) => platformSupports(body, p));
+}
+
+/** Überlappt der Körper (echte Fläche, Berührung zählt nicht) eine Wasserzelle? */
+export function inWater(body: Rect, grid: TileGrid): boolean {
+  const [cx0, cx1] = span(body.x, body.x + body.w);
+  const [cy0, cy1] = span(body.y, body.y + body.h);
+  for (let cy = cy0; cy <= cy1; cy++) {
+    for (let cx = cx0; cx <= cx1; cx++) if (grid.get(cx, cy) === Cell.Water) return true;
+  }
+  return false;
 }
 
 export function wallAt(body: Body, grid: TileGrid, dir: -1 | 1): boolean {

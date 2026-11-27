@@ -16,9 +16,19 @@ export type SpriteName =
   | 'crate' | 'crateUsed' | 'crystal' | 'edel' | 'helm' | 'sling' | 'glider' | 'crampon' | 'enzian'
   | 'beetle' | 'beetleFlat' | 'snail' | 'stone' | 'cloud' | 'groundTop' | 'groundFill'
   | 'pebble' | 'leafPad'
+  | 'log' | 'log3' | 'log4' | 'stoneSlab' | 'stoneSlab3' | 'stoneSlab4' | 'waterTop1' | 'waterTop2' | 'water'
   | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'iSling' | 'cross' | 'crossGold' | 'cairn' | 'cairnFlag' | 'debris';
 
 export const KRAXEL_FRAMES: readonly SpriteName[] = KRAXEL_NAMES;
+
+/** Bild einer beweglichen Plattform: `log`/`stoneSlab` 2 Kacheln breit, sonst mit Ziffer (`log3`, `stoneSlab4`). */
+export function platformSprite(art: 'stamm' | 'stein', width: number): SpriteName {
+  const base = art === 'stamm' ? 'log' : 'stoneSlab';
+  return (width === 2 ? base : `${base}${width}`) as SpriteName;
+}
+
+/** Bachwasser: Bilder der Oberfläche (zwei Wellenbilder im Wechsel) und der Tiefe. */
+export const WATER_TOP_FRAMES: readonly SpriteName[] = ['waterTop1', 'waterTop2'];
 
 export function helmName(frame: SpriteName): string {
   return frame + 'Helm';
@@ -454,6 +464,77 @@ function leafPad(): PixelGrid {
   return o;
 }
 
+/** Treibender Baumstamm, `tiles` Kacheln breit, 16 hoch: Rinde mit hellem Rücken, Jahresringe an beiden Enden. */
+function logSprite(tiles: number): PixelGrid {
+  const w = tiles * 16;
+  const g = grid(w, 16);
+  rect(g, 4, 1, w - 5, 14, 'J');
+  rect(g, 4, 1, w - 5, 3, 'C');
+  rect(g, 4, 4, w - 5, 4, 'c');
+  rect(g, 4, 11, w - 5, 14, 'j');
+  rect(g, 4, 10, w - 5, 10, 'c');
+  // Rindenrillen und Astlöcher, immer nach demselben Muster
+  for (let x = 7; x < w - 8; x += 7) {
+    const y = 5 + ((x * 5) % 4);
+    rect(g, x, y, x + 2, y, 'j');
+    put(g, [[x + 1, y + 1]], 'j');
+  }
+  for (let x = 10; x < w - 10; x += 11) put(g, [[x, 2], [x + 1, 2]], 'I');
+  put(g, [[w / 2, 8], [w / 2 + 1, 8], [w / 2, 9], [w / 2 + 1, 9]], 'k');
+  for (const cx of [4.5, w - 4.5]) {
+    ell(g, cx, 7.5, 3.5, 6.5, 'C');
+    ell(g, cx, 7.5, 2.5, 5, 'B');
+    ell(g, cx, 7.5, 1.3, 3, 'C');
+    put(g, [[Math.floor(cx), 7]], 'c');
+  }
+  return outline(g);
+}
+
+/** Steinplatte, `tiles` Kacheln breit, 16 hoch: behauener Block mit hellem Rand oben links, Fugen, Rissen und Moos auf der Oberkante. */
+function slabSprite(tiles: number): PixelGrid {
+  const w = tiles * 16;
+  const g = grid(w, 16);
+  rect(g, 1, 1, w - 2, 14, 'M');
+  put(g, [[1, 1], [w - 2, 1], [1, 14], [w - 2, 14]], '.');
+  rect(g, 2, 1, w - 3, 2, 'm');
+  rect(g, 1, 3, 1, 12, 'm');
+  rect(g, 2, 13, w - 3, 14, 'n');
+  rect(g, w - 2, 3, w - 2, 12, 'n');
+  for (let x = 16; x < w - 4; x += 16) rect(g, x, 3, x, 12, 'n'); // Fugen zwischen den Kacheln
+  put(g, [[6, 5], [7, 6], [7, 7], [8, 8], [w - 9, 7], [w - 10, 8], [w - 10, 9], [w - 11, 10]], 'n');
+  put(g, [[10, 9], [w - 6, 5], [w / 2 + 3, 10]], 'm');
+  // Moos auf der Oberkante
+  const moss = [[4, 1], [5, 1], [6, 1], [5, 2], [w - 8, 1], [w - 7, 1], [w - 7, 2], [w - 6, 1]] as const;
+  put(g, moss, 'G');
+  put(g, [[5, 3], [w - 7, 3]], 'g');
+  const o = outline(g);
+  rect(o, 2, 0, w - 3, 0, 'o'); rect(o, 2, 15, w - 3, 15, 'o'); rect(o, 0, 2, 0, 13, 'o'); rect(o, w - 1, 2, w - 1, 13, 'o');
+  return o;
+}
+
+/** Wasseroberfläche: Wellenkamm im Zellenraster, Periode 8 px (zwei Bilder gegeneinander um 4 px verschoben), darunter Schaum, helles und mittleres Blau, unten ins Tiefe verlaufend. */
+function waterTop(frame: 0 | 1): PixelGrid {
+  const g = grid(16, 16);
+  const crest = [1, 0, 0, 1, 2, 2, 1, 1]; // Tiefe der Oberfläche je Spalte
+  for (let x = 0; x < 16; x++) {
+    const top = crest[(x + frame * 4) % 8];
+    for (let y = top; y < 16; y++) {
+      g[y][x] = y === top ? 'Z' : y === top + 1 ? 'X' : y >= 12 && (x + y) % 2 === 0 ? 'N' : 'x';
+    }
+  }
+  put(g, [[(3 + frame * 8) % 16, 5], [(4 + frame * 8) % 16, 5], [(11 + frame * 8) % 16, 8]], 'X');
+  return g;
+}
+
+/** Tiefes Wasser unter der Oberfläche: dunkleres Blau mit hellen Strichen. */
+function waterDeep(): PixelGrid {
+  const g = grid(16, 16);
+  rect(g, 0, 0, 15, 15, 'N');
+  for (const [x, y, len] of [[2, 3, 4], [9, 6, 3], [5, 10, 5], [12, 13, 3], [0, 14, 2]] as const) rect(g, x, y, x + len - 1, y, 'x');
+  put(g, [[3, 2], [10, 5], [6, 9]], 'X');
+  return g;
+}
+
 function stone(): PixelGrid {
   const g = grid(16, 16);
   rect(g, 0, 0, 15, 15, 'o'); rect(g, 1, 1, 14, 14, 'M');
@@ -577,7 +658,9 @@ export function buildSprites(): Record<string, PixelGrid> {
   const sprites: Record<SpriteName, PixelGrid> = {
     ...frames, ...crates(), ...beetles(),
     crystal: strs(CRYSTAL), edel: edel(), helm: helm(), sling: sling(), glider: glider(),
-    crampon: crampon(), enzian: enzian(), pebble: strs(PEBBLE), leafPad: leafPad(), snail: snail(), stone: stone(), cloud: cloud(),
+    crampon: crampon(), enzian: enzian(), pebble: strs(PEBBLE), leafPad: leafPad(),
+    log: logSprite(2), log3: logSprite(3), log4: logSprite(4), stoneSlab: slabSprite(2), stoneSlab3: slabSprite(3), stoneSlab4: slabSprite(4),
+    waterTop1: waterTop(0), waterTop2: waterTop(1), water: waterDeep(), snail: snail(), stone: stone(), cloud: cloud(),
     groundTop: groundTop(), groundFill: groundFill(),
     iCrystal: strs(I_CRYSTAL), iEdel, iEdelOff: recolor(iEdel, { V: 'w', Y: 'w' }), iHead: strs(I_HEAD), iSling: strs(I_SLING),
     cross: crossGrid, crossGold: recolor(crossGrid, { J: 'Q', j: 'q' }), cairn: base, cairnFlag: cairnFlag(base), debris: strs(DEBRIS),

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BASE } from './palette.ts';
-import { buildSprites, KRAXEL_FRAMES, helmName } from './sprites.ts';
+import { buildSprites, KRAXEL_FRAMES, helmName, platformSprite } from './sprites.ts';
 
 const S = buildSprites();
 const text = (name: string) => S[name].map((r) => r.join(''));
@@ -22,7 +22,7 @@ describe('sprites', () => {
   });
 
   it('Umrandung wird nirgends am Rand abgeschnitten (kein Farbpixel am Rasterrand)', () => {
-    const TILES = new Set(['groundTop', 'groundFill']); // Kacheln füllen die Zelle bis zum Rand
+    const TILES = new Set(['groundTop', 'groundFill', 'waterTop1', 'waterTop2', 'water']); // Kacheln füllen die Zelle bis zum Rand
     const bad: string[] = [];
     for (const [name, g] of Object.entries(S)) {
       if (TILES.has(name)) continue;
@@ -110,5 +110,28 @@ describe('sprites', () => {
       expect(rows[i][15], `rechts ${i}`).toBe('o');
     }
     expect(rows.join('')).not.toMatch(/[Dd]/); // Erde gehört dem Boden
+  });
+});
+
+describe('Plattformen und Wasser', () => {
+  const dim = (n: string) => [S[n].length, S[n][0].length];
+  it('Stämme und Steinplatten sind 16 hoch und 2, 3 oder 4 Kacheln breit', () => {
+    expect([dim('log'), dim('log3'), dim('log4')]).toEqual([[16, 32], [16, 48], [16, 64]]);
+    expect([dim('stoneSlab'), dim('stoneSlab3'), dim('stoneSlab4')]).toEqual([[16, 32], [16, 48], [16, 64]]);
+    for (const [art, w] of [['stamm', 2], ['stamm', 3], ['stamm', 4], ['stein', 2], ['stein', 3], ['stein', 4]] as const) {
+      expect(S[platformSprite(art, w)][0].length).toBe(w * 16);
+    }
+  });
+  it('die Oberkante trägt: oben eine durchgehende Umrandung', () => {
+    for (const n of ['log', 'log4', 'stoneSlab', 'stoneSlab4']) {
+      const top = text(n)[0];
+      expect(top.slice(3, -3), n).toBe('o'.repeat(top.length - 6));
+    }
+  });
+  it('Wasserkacheln sind 16×16, die Oberfläche hat zwei verschiedene Bilder und liegt an der Oberkante', () => {
+    for (const n of ['waterTop1', 'waterTop2', 'water']) expect(dim(n)).toEqual([16, 16]);
+    expect(text('waterTop1').join()).not.toBe(text('waterTop2').join());
+    expect(text('waterTop1')[0]).toContain('Z'); // Schaumkamm in der obersten Reihe
+    expect(text('water').join('')).not.toContain('.'); // Tiefe ist undurchsichtig
   });
 });

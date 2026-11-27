@@ -10,6 +10,8 @@ export const BASE: Readonly<Record<string, string>> = Object.freeze({
   X: '#5ee7ff', x: '#2a9fd6', V: '#ffffff', v: '#c9d3e6', A: '#e8465a', a: '#a8253e', L: '#4b3a66',
   T: '#c9e86a', t: '#8fbf3c', U: '#ff9a3c', u: '#c4621f', I: '#fff3d6', Q: '#ffcf33', q: '#d99a12',
   J: '#a8693a', j: '#6e4122', m: '#e6ecf5', n: '#6b7a99', O: '#ff6a2a', w: '#9aa6bd',
+  /** Tiefes Bachwasser. */
+  N: '#1f6fb0',
 });
 
 export type TileLetter = 'G' | 'g' | 'l' | 'D' | 'd' | 'p';
