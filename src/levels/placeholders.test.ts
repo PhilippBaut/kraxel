@@ -1,4 +1,4 @@
-// Platzhalter-Level 1-4 und 1-F: gültig, kurz, beim Gipfelkreuz endbar, ohne geheimes Gipfelkreuz. (1-2 und 1-3 sind echt: level-1-2.test.ts, level-1-3.test.ts)
+// Platzhalter-Level 1-F: gültig, kurz, beim Gipfelkreuz endbar, ohne geheimes Gipfelkreuz. (1-2 bis 1-4 sind echt: level-1-2.test.ts, level-1-3.test.ts, level-1-4.test.ts)
 import { describe, expect, it } from 'vitest';
 import { createGame } from '../core/game.ts';
 import { parseLevel, validateLevel } from '../core/level.ts';
@@ -6,7 +6,7 @@ import { runGame } from '../core/test-helpers.ts';
 import type { GameEvent } from '../core/types.ts';
 import { LEVELS } from './index.ts';
 
-const IDS = ['1-4', '1-F'];
+const IDS = ['1-F'];
 
 describe('Platzhalter-Level', () => {
   for (const id of IDS) {
@@ -22,8 +22,8 @@ describe('Platzhalter-Level', () => {
     });
   }
 
-  it('1-4 und 1-F haben kein geheimes Gipfelkreuz', () => {
-    for (const id of ['1-4', '1-F']) {
+  it('1-F hat kein geheimes Gipfelkreuz', () => {
+    for (const id of IDS) {
       expect(parseLevel(id, LEVELS[id]).spawns.some((s) => s.kind === 'secretGoal')).toBe(false);
     }
   });
@@ -35,8 +35,8 @@ describe('Platzhalter-Level', () => {
     return events;
   };
 
-  it('Dauerlauf mit Sprüngen erreicht in 1-4 und 1-F das normale Ziel', () => {
-    for (const id of ['1-4', '1-F']) {
+  it('Dauerlauf mit Sprüngen erreicht in 1-F das normale Ziel', () => {
+    for (const id of IDS) {
       const ev = dauerlauf(createGame(parseLevel(id, LEVELS[id])));
       expect([id, ev.find((e) => e.type === 'goal')]).toEqual([id, expect.objectContaining({ exit: 'normal' })]);
     }
