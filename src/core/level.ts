@@ -146,6 +146,9 @@ function startsOnPlatform(l: LevelData, s: EntitySpawn): boolean {
   return l.platforms.some((p) => p.cy === s.cy + 1 && s.cx >= p.cx && s.cx < p.cx + p.width);
 }
 
+/** So viele Kacheln über der Oberkante der Plattform müssen frei sein (Kraxel ist 14 px hoch, dazu Luft zum Springen). */
+const RIDER_CLEARANCE = 2;
+
 /** Breite 2–4, Achse und Art, Weg und Tempo; der ganze Fahrweg liegt im Level und schneidet keine feste Zelle (nichts wird zerquetscht). */
 function platformProblems(l: LevelData, g: TileGrid, p: PlatformSpec, n: number): string[] {
   const out: string[] = [];
@@ -170,6 +173,16 @@ function platformProblems(l: LevelData, g: TileGrid, p: PlatformSpec, n: number)
     for (let cx = x0; cx <= x1; cx++) {
       if (g.isSolid(cx, cy) || g.get(cx, cy) === Cell.HiddenCrate) {
         out.push(`${name}: Der Fahrweg schneidet die feste Zelle ${cx},${cy}.`);
+        return out;
+      }
+    }
+  }
+  // Freiraum für den Fahrer: über jeder Lage der Plattform muss Platz für Kraxel sein (2 Kacheln über der Oberkante, Spalten der Plattform
+  // über dem ganzen Weg). Sonst klemmt die Decke den Fahrer, während die Plattform weiterfährt, und er fällt hindurch.
+  for (let cy = Math.max(0, y0 - RIDER_CLEARANCE); cy < y0; cy++) {
+    for (let cx = x0; cx <= x1; cx++) {
+      if (g.isSolid(cx, cy) || g.get(cx, cy) === Cell.HiddenCrate) {
+        out.push(`${name}: Über dem Fahrweg fehlt Platz für den Fahrer (feste Zelle ${cx},${cy}).`);
         return out;
       }
     }

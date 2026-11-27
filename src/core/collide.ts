@@ -49,12 +49,15 @@ export function platformSupports(body: Rect, p: PlatformState): boolean {
   return bottom <= p.y + TOP_EPS && bottom >= p.y - 1 && body.x < p.x + p.spec.width * TILE && body.x + body.w > p.x;
 }
 
-/** Plattform, auf die der Körper in diesem Teilschritt fällt: Füße waren oberhalb der Oberkante (bei aufwärts fahrender Plattform eine Fahrstrecke tiefer, weil sie dem Körper entgegenkam) und sind jetzt auf oder darunter. */
-function landingPlatform(body: Rect, prevBottom: number, list: readonly PlatformState[]): PlatformState | null {
+/** Plattform, auf die der Körper in diesem Teilschritt fällt: Füße waren oberhalb der Oberkante und sind jetzt auf oder darunter.
+ *  Fährt die Plattform aufwärts, kam sie dem Körper entgegen: dann zählt auch eine Fußhöhe bis eine Fahrstrecke darunter, aber nur, wenn der Körper schon vor der Bewegung dieses Schritts waagerecht über ihr war (`startX`); wer von der Seite kommt, wird nicht hochgezogen. */
+function landingPlatform(body: Rect, prevBottom: number, startX: number, list: readonly PlatformState[]): PlatformState | null {
   const bottom = body.y + body.h;
   for (const p of list) {
     if (body.x >= p.x + p.spec.width * TILE || body.x + body.w <= p.x) continue;
-    if (bottom >= p.y - TOP_EPS && prevBottom <= p.y + Math.max(0, -p.dy) + TOP_EPS) return p;
+    const overHere = startX < p.x + p.spec.width * TILE && startX + body.w > p.x;
+    const rise = overHere ? Math.max(0, -p.dy) : 0;
+    if (bottom >= p.y - TOP_EPS && prevBottom <= p.y + rise + TOP_EPS) return p;
   }
   return null;
 }
@@ -67,6 +70,7 @@ function stepCount(d: number): number {
 export function moveBody(body: Body, dt: number, grid: TileGrid, cornerCorrection = 0, platforms: readonly PlatformState[] = NO_PLATFORMS): MoveResult {
   const res: MoveResult = { left: false, right: false, up: false, down: false, headCells: [] };
 
+  const startX = body.x;
   // X
   const dx = body.vx * dt;
   if (dx !== 0) {
@@ -98,7 +102,7 @@ export function moveBody(body: Body, dt: number, grid: TileGrid, cornerCorrectio
           body.y = Math.floor((body.y + body.h) / TILE) * TILE - body.h;
           body.vy = 0; res.down = true; break;
         }
-        const pl = landingPlatform(body, prevTop + body.h, platforms);
+        const pl = landingPlatform(body, prevTop + body.h, startX, platforms);
         if (pl) {
           body.y = pl.y - body.h;
           body.vy = 0; res.down = true; break;

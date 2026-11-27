@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { STEP, TILE } from '../config.ts';
+import { moveBody } from './collide.ts';
+import { TileGrid } from './grid.ts';
 import { LevelError, parseLevel, validateLevel } from './level.ts';
 import type { LevelData } from './level.ts';
 import { createPlatforms, standingOn, stepPlatforms } from './platforms.ts';
@@ -16,6 +18,10 @@ const row = (s: string, w = 30) => s.padEnd(w, '.');
 /** Reihe 0–7 leer, 8 Plattformhöhe, 9–10 leer, 11 Boden. */
 const field = (rows: Record<number, string> = {}, floor = '#'.repeat(30)) =>
   Array.from({ length: 12 }, (_, i) => (i === 11 ? floor : row(rows[i] ?? '')));
+
+/** Boden aus Wasser mit festem Stück links, darauf steht Kraxel (`P` in Reihe 10), damit er nicht ins Wasser fällt und das Level neu startet. */
+const WATER = '####' + 'W'.repeat(26);
+const safe = (rows: string[]) => rows.map((r, i) => (i === 10 ? 'P' + r.slice(1) : r));
 
 const spec = (o: Partial<PlatformSpec> = {}): PlatformSpec => ({ cx: 2, cy: 5, width: 2, axis: 'h', travel: 4, speed: 2, art: 'stamm', ...o });
 const text = (head: string, rows: string[] = ['P.........', '..........', '##########']) =>
@@ -62,10 +68,28 @@ describe('Kopfzeile plattform', () => {
     expect(validateLevel(bad, NONE).filter((p) => p.includes('Plattform'))).toHaveLength(2);
   });
   it('Käfer und Schnecke dürfen auf dem Startplatz einer Plattform stehen', () => {
-    const l = text('plattform: 3 2 3 h 3 1 stein', ['..........', '...k......', '..........', 'P.........', '##########']);
     expect(problems('plattform: 3 2 3 h 3 1 stein', ['..........', '...k......', '..........', 'P.........', '##########'])).toEqual([]);
-    expect(l).toContain('k');
     expect(problems('plattform: 4 2 3 h 3 1 stein', ['..........', '...k......', '..........', 'P.........', '##########']).some((p) => p.includes('Boden'))).toBe(true);
+  });
+});
+
+describe('Freiraum über dem Fahrweg', () => {
+  const rows = (extra: Record<number, string> = {}) =>
+    ['..........', '..........', '..........', '..........', 'P.........', '##########'].map((r, i) => extra[i] ?? r);
+  const clear = (head: string, extra?: Record<number, string>) => problems(head, rows(extra)).filter((p) => p.includes('Plattform'));
+  it('senkrecht: eine feste Zelle über der höchsten Lage wird gemeldet', () => {
+    const head = 'plattform: 3 3 2 v -1 1 stamm'; // höchste Lage Reihe 2, Fahrer braucht Reihe 0 und 1
+    expect(clear(head)).toEqual([]);
+    expect(clear(head, { 1: '...B......' })).toHaveLength(1);
+    expect(clear(head, { 0: '....B.....' })).toHaveLength(1);
+    expect(clear(head, { 1: '.....B....' })).toEqual([]); // neben der Plattform
+  });
+  it('waagerecht: eine feste Zelle über irgendeiner Lage des Wegs wird gemeldet', () => {
+    const head = 'plattform: 1 3 2 h 4 1 stein'; // Spalten 1 bis 6
+    expect(clear(head)).toEqual([]);
+    expect(clear(head, { 2: '.....B....' })).toHaveLength(1);
+    expect(clear(head, { 1: '......B...' })).toHaveLength(1);
+    expect(clear(head, { 2: '.......B..' })).toEqual([]); // hinter dem Wegende
   });
 });
 
@@ -186,7 +210,7 @@ describe('Kraxel auf Plattformen', () => {
   });
 
   it('Springen und Rennen von der Plattform wie vom Boden', () => {
-    const s = gameFrom(field(), undefined, ['plattform: 4 8 4 h 3 1 stamm']);
+    const s = gameFrom(field(), undefined, ['plattform: 4 8 4 h 0 1 stamm']); // steht still: Werte wie vom Boden
     placePlayer(s, 5, 6);
     runGame(s, [[{}, 40]]);
     expect(s.player.grounded).toBe(true);
@@ -197,7 +221,6 @@ describe('Kraxel auf Plattformen', () => {
     expect(s.player.grounded).toBe(true);
     // Rennen: nach der Anlaufzeit schneller als Gehen
     const t = DEFAULT_TUNING;
-    s.platforms[0]!.spec.travel = 0; // deterministisch stehen lassen
     runGame(s, [[{ right: true }, 20]]);
     expect(s.player.grounded).toBe(true);
     expect(s.player.body.vx).toBeGreaterThan(0);
@@ -247,19 +270,21 @@ describe('Kraxel auf Plattformen', () => {
 
 describe('Gegner und Items auf Plattformen', () => {
   it('Schnecke fährt mit und dreht an der Plattformkante um', () => {
-    const rows = field({ 7: '.....s' }, 'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW');
+    const rows = safe(field({ 7: '.....s' }, WATER));
     const s = gameFrom(rows, undefined, ['plattform: 5 8 2 h 4 1 stamm']);
-    for (let i = 0; i < 600; i++) {
-      stepGame(s, held() as never, DEFAULT_TUNING, { x: 0, w: 512 }, STEP);
-      if (s.phase !== 'playing') break;
-    }
     const e = s.enemies[0]!;
-    expect(e.alive).toBe(true);
-    expect(standingOn(e.body, s.platforms)).toBe(s.platforms[0]);
+    let flips = 0, last = e.dir;
+    for (let i = 0; i < 900; i++) {
+      runGame(s, [[{}, 1]]);
+      if (e.dir !== last) { flips++; last = e.dir; }
+      expect(e.alive, `Schritt ${i}`).toBe(true);
+      expect(standingOn(e.body, s.platforms), `Schritt ${i}`).toBe(s.platforms[0]); // fällt nie vom Stamm
+    }
+    expect(flips).toBeGreaterThanOrEqual(2); // dreht an beiden Kanten um (Weg 32 px bei Tempo 15)
   });
 
   it('Käfer auf der Plattform bewegt sich mit ihr, solange er darauf steht', () => {
-    const rows = field({ 7: '......k' }, 'W'.repeat(30));
+    const rows = safe(field({ 7: '......k' }, WATER));
     const s = gameFrom(rows, undefined, ['plattform: 6 8 4 v 2 1 stamm']);
     s.enemies[0]!.dir = 1;
     for (let i = 0; i < 40; i++) runGame(s, [[{}, 1]]);
@@ -270,7 +295,7 @@ describe('Gegner und Items auf Plattformen', () => {
   });
 
   it('Item fährt mit', () => {
-    const rows = field({}, 'W'.repeat(30));
+    const rows = safe(field({}, WATER));
     const s = gameFrom(rows, undefined, ['plattform: 6 8 4 v 2 1 stamm']);
     const item = { ...spawnItem('helm', 6, 7), emerge: 0 };
     s.pickups.push(item);
@@ -278,5 +303,27 @@ describe('Gegner und Items auf Plattformen', () => {
     expect(item.taken).toBe(false);
     expect(s.platforms[0]!.y).toBeGreaterThan(128);
     expect(item.body.y + item.body.h).toBeCloseTo(s.platforms[0]!.y, 6);
+  });
+});
+
+describe('Landen auf aufwärts fahrender Plattform', () => {
+  const rising = () => {
+    const [pl] = createPlatforms([spec({ axis: 'v', travel: -3, speed: 1 })]);
+    pl!.dy = -2; // fährt dem Körper entgegen
+    return pl!;
+  };
+  it('wer von der Seite kommt, wird nicht auf die Oberkante hochgezogen', () => {
+    const pl = rising(); // x 32..64, Oberkante y 80
+    const body = { x: pl.x - 10, y: pl.y + 1 - 14, w: 10, h: 14, vx: 300, vy: 60 }; // Füße 1 px unter der Oberkante, schiebt sich in 1/60 s über sie
+    const r = moveBody(body, STEP, new TileGrid(10, 10), 0, [pl]);
+    expect(r.down).toBe(false);
+    expect(body.y + body.h).toBeGreaterThan(pl.y + 1);
+  });
+  it('wer schon darüber steht, wird vom entgegenkommenden Rand getragen', () => {
+    const pl = rising();
+    const body = { x: pl.x + 5, y: pl.y + 1 - 14, w: 10, h: 14, vx: 0, vy: 60 };
+    const r = moveBody(body, STEP, new TileGrid(10, 10), 0, [pl]);
+    expect(r.down).toBe(true);
+    expect(body.y + body.h).toBe(pl.y);
   });
 });
