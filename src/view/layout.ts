@@ -52,6 +52,12 @@ function baseLayout(cssW: number, cssH: number, insets: Insets): Layout {
     const panelH = gameH - panelY;
     if (panelH >= MIN_PANEL_H) {
       const B = gameH - Math.ceil(insets.bottom / scale) - 8;
+      // Aktionsknopf (Schleuder) über dem Sprungknopf, so weit, dass sich die Trefferkreise nicht berühren.
+      // Ist das Steuerfeld dafür zu niedrig, bleibt er links unten neben dem Sprungknopf.
+      const jumpCy = B - 56;
+      const r = BASE_RADII.portrait;
+      const aboveCy = jumpCy - (r.jump.hitR + r.action.hitR);
+      const actionFitsAbove = aboveCy - r.action.r >= panelY + 16 + 2;
       return {
         orientation: 'portrait', gameW: PORTRAIT_VIEW_W, gameH, scale,
         view: { x: 0, y: T, w: PORTRAIT_VIEW_W, h: VIEW_H },
@@ -60,8 +66,8 @@ function baseLayout(cssW: number, cssH: number, insets: Insets): Layout {
         pause: { x: 236, y: panelY + 2, w: 16, h: 12 },
         pauseHit: { x: 224, y: panelY, w: 32, h: 24 }, // rechtes Ende der Info-Zeile, 8 px nach unten verlängert
         dpad: circle('portrait', 'dpad', 60, B - 50),
-        jump: circle('portrait', 'jump', 200, B - 56),
-        action: circle('portrait', 'action', 140, B - 16),
+        jump: circle('portrait', 'jump', 200, jumpCy),
+        action: actionFitsAbove ? circle('portrait', 'action', 200, aboveCy) : circle('portrait', 'action', 140, B - 16),
         controlsAlpha: 1,
         controlsArea: { x: 0, y: panelY + 16, w: PORTRAIT_VIEW_W, h: gameH - Math.ceil(insets.bottom / scale) - 4 - (panelY + 16) },
       };

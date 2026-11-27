@@ -51,6 +51,21 @@ describe('computeLayout', () => {
     for (const c of [l.dpad, l.jump, l.action]) expect(inside(c, l.panel ? { ...l.panel, y: l.hud.y + l.hud.h, h: l.panel.h - l.hud.h } : safe)).toBe(true);
     expect(apart(l.dpad, l.jump) && apart(l.dpad, l.action) && apart(l.jump, l.action)).toBe(true);
   });
+  it.each([
+    [375, 667, { top: 20, right: 0, bottom: 0, left: 0 }], [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }], [430, 932, { top: 59, right: 0, bottom: 34, left: 0 }],
+  ])('hochkant liegt der Aktionsknopf über dem Sprungknopf (%ix%i, Wunsch nach Handy-Test 27.11.2026)', (w, h, ins) => {
+    const l = computeLayout(w, h, ins);
+    expect(l.action.cx).toBe(l.jump.cx);
+    expect(l.action.cy + l.action.r).toBeLessThan(l.jump.cy - l.jump.r);
+  });
+  it('sehr niedriges Steuerfeld: Aktionsknopf bleibt links neben dem Sprungknopf und passt', () => {
+    // 400×527 ergibt ein Steuerfeld von 145 px, knapp über der Mindesthöhe von 140.
+    const l = computeLayout(400, 527, { top: 0, right: 0, bottom: 0, left: 0 });
+    expect(l.orientation).toBe('portrait');
+    expect(l.action.cx).toBeLessThan(l.jump.cx);
+    for (const c of [l.dpad, l.jump, l.action]) expect(inside(c, l.controlsArea)).toBe(true);
+    expect(apart(l.dpad, l.action) && apart(l.jump, l.action)).toBe(true);
+  });
 });
 
 describe('Pause-Trefferfläche', () => {
