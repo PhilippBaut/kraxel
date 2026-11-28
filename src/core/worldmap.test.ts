@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSave, type LevelRecord, type SaveData } from './save.ts';
-import { enterable, nodeAtPoint, nodeForLevel, nodeOpen, openedBetween, pathOpen, pickDirection, route, validateMap, withoutOpened, type WorldMap } from './worldmap.ts';
+import { enterable, nodeAtPoint, nodeForLevel, nodeOpen, openedBetween, pathOpen, pickDirection, route, validateMap, withoutOpened, worldCleared, type WorldMap } from './worldmap.ts';
 import { WORLD1 } from '../maps/world1.ts';
 
 const IDS = ['1-1', '1-2', '1-3', '1-4', '1-F'];
@@ -106,6 +106,20 @@ describe('Weltkarte', () => {
     const opened = openedBetween(WORLD1, defaultSave(), done('1-1'));
     expect(opened.map((p) => `${p.from}→${p.to}`)).toEqual(['1-1→1-2']);
     expect(openedBetween(WORLD1, done('1-1'), done('1-1'))).toEqual([]);
+  });
+
+  it('worldCleared: nur wenn der normale Ausgang der Festung neu aufgeht (Band „GRASWELT GESCHAFFT!“)', () => {
+    const before = done('1-1', '1-2', '1-3', '1-4');
+    const after = done('1-1', '1-2', '1-3', '1-4', '1-F');
+    const opened = openedBetween(WORLD1, before, after);
+    expect(opened.map((p) => `${p.from}→${p.to}`)).toEqual(['1-F→teaser']);
+    expect(worldCleared(WORLD1, opened)).toBe(true);
+    // Zum zweiten Mal geschafft: nichts geht neu auf, kein Band.
+    expect(worldCleared(WORLD1, openedBetween(WORLD1, after, after))).toBe(false);
+    // Andere Wege, auch der zur Festung, zählen nicht.
+    expect(worldCleared(WORLD1, openedBetween(WORLD1, done('1-1', '1-2', '1-3'), before))).toBe(false);
+    expect(worldCleared(WORLD1, openedBetween(WORLD1, defaultSave(), done('1-1')))).toBe(false);
+    expect(worldCleared(WORLD1, [])).toBe(false);
   });
 
   it('teaser ist nie betretbar, Hütte auch nicht', () => {

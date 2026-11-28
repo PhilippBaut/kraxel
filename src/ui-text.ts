@@ -24,5 +24,7 @@ export const TEXT = {
   TO_MAP: 'ZUR KARTE',
   TO_TITLE: 'TITEL',
   COMING_SOON: 'FORTSETZUNG FOLGT',
+  /** Band auf der Karte nach dem ersten Sieg über die Festung von Welt 1. */
+  WORLD_CLEAR: 'GRASWELT GESCHAFFT!',
   NO_TIME: '-:--',
 } as const;

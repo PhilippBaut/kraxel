@@ -1,12 +1,15 @@
 // Die Weltkarte: Kraxel läuft auf Wegen zwischen den Punkten (Steuerkreuz oder Tippen), Sprung oder zweiter Tipp betritt das Level.
 // Die Info zum Punkt (Name, Bestzeit, Edelweiß) zeichnet UiScene aus der Registry (`mapInfo`), damit sie über dem Steuerfeld bzw. in der Leiste liegt.
 import Phaser from 'phaser';
+import type { Sfx } from '../audio/sfx.ts';
 import { TILE } from '../config.ts';
 import { formatTime } from '../core/format.ts';
 import { DirEdges } from '../core/dir-edges.ts';
 import { newRun } from '../core/run.ts';
 import { loadSave, safeStorage, withLastNode, writeSave, type SaveData } from '../core/save.ts';
-import { enterable, nodeAtPoint, nodeById, nodeOpen, pathOpen, pickDirection, route, withoutOpened, type MapNode, type MapPath } from '../core/worldmap.ts';
+import { enterable, nodeAtPoint, nodeById, nodeOpen, pathOpen, pickDirection, route, withoutOpened, worldCleared, type MapNode, type MapPath } from '../core/worldmap.ts';
+import { GLYPH_H } from '../gfx/font.ts';
+import { OutlinedText } from '../gfx/pixel-text.ts';
 import { helmName, type SpriteName } from '../gfx/sprites.ts';
 import type { Controls } from '../input/controls.ts';
 import { zoneAt } from '../input/touch.ts';
@@ -27,6 +30,15 @@ const WALK_FRAME_TIME = 0.12;
 /** Kraxel steht mit den Füßen etwas unter der Punktmitte. */
 const FIGURE_DY = 5;
 const GRASS = '#5fd35a';
+/** So lange steht das Band „GRASWELT GESCHAFFT!“ nach dem ersten Sieg über die Festung (s); danach zeichnen sich die neuen Wege ein. */
+const BAND_SECONDS = 3;
+/** Das Band klappt in dieser Zeit (s) von der Mittellinie auf und am Ende wieder zu. */
+const BAND_FOLD = 0.2;
+const BAND_H = 26;
+const BAND_SCALE = 2;
+const BAND_COLOR = 0x1a1030;
+const BAND_ALPHA = 0.85;
+const GOLD = 0xffd23f;
 
 /** Was UiScene über den aktuellen Punkt anzeigt. `time` und `edelweiss` sind bei Hütte und Platzhalter null. */
 export interface MapInfo { name: string; time: string | null; edelweiss: [boolean, boolean, boolean] | null }
@@ -54,6 +66,8 @@ export class MapScene extends Phaser.Scene {
   private at = WORLD1.start;
   private walk: Walk | null = null;
   private reveals: Reveal[] = [];
+  /** Band „GRASWELT GESCHAFFT!“ samt Restzeit; solange es steht, ruht die Karte (auch die Einzeichen-Animation). */
+  private band: { bg: Phaser.GameObjects.Graphics; text: OutlinedText; left: number } | null = null;
   private pending: { arriveAt?: string; opened?: MapPath[] } = {};
   private leaving = false;
   private pausing = false;
@@ -110,6 +124,7 @@ export class MapScene extends Phaser.Scene {
     this.refresh();
     if (this.pending.arriveAt !== undefined) this.rememberNode(this.at);
     this.publishInfo();
+    this.band = worldCleared(this.map, opened) ? this.createBand() : null;
 
     this.applyLayout(this.registry.get('layout') as Layout);
     this.dirs.seed(this.controls.sample()); // Taste oder Finger, die hierher geführt haben (auch eine gehaltene Richtung), zählen nicht
@@ -193,6 +208,28 @@ export class MapScene extends Phaser.Scene {
     if (n.kind === 'teaser') { if (open) img.clearTint(); else img.setTint(0x8a8aa0); }
   }
 
+  /** Band quer über die Karte; die Fanfare `goal` steht für die eigene Melodie, die mit der Musik kommt. */
+  private createBand(): { bg: Phaser.GameObjects.Graphics; text: OutlinedText; left: number } {
+    const bg = this.add.graphics().setDepth(10).setScale(1, 0);
+    const text = new OutlinedText(this, 0, 0, TEXT.WORLD_CLEAR, 'ring').setFaceTint(GOLD).setScale(BAND_SCALE).setDepth(11).setVisible(false);
+    (this.registry.get('sfx') as Sfx | undefined)?.play('goal');
+    return { bg, text, left: BAND_SECONDS };
+  }
+
+  private stepBand(dt: number): void {
+    const b = this.band!;
+    b.left -= dt;
+    if (b.left <= 0) {
+      b.bg.destroy();
+      b.text.destroy();
+      this.band = null;
+      return;
+    }
+    const open = Math.min(1, (BAND_SECONDS - b.left) / BAND_FOLD, b.left / BAND_FOLD);
+    b.bg.setScale(1, open);
+    b.text.setVisible(open >= 1);
+  }
+
   private node(id: string): MapNode {
     return nodeById(this.map, id)!;
   }
@@ -261,7 +298,7 @@ export class MapScene extends Phaser.Scene {
   // ------------------------------------------------------------ Eingabe
 
   private get busy(): boolean {
-    return this.walk !== null || this.reveals.length > 0 || this.leaving;
+    return this.band !== null || this.walk !== null || this.reveals.length > 0 || this.leaving;
   }
 
   update(_time: number, delta: number): void {
@@ -269,6 +306,10 @@ export class MapScene extends Phaser.Scene {
     const f = this.controls.sample();
     const edges = this.dirs.step(f);
 
+    if (this.band) {
+      this.stepBand(dt);
+      return;
+    }
     if (this.reveals.length > 0) {
       this.stepReveal(dt);
       return;
@@ -388,5 +429,11 @@ export class MapScene extends Phaser.Scene {
     this.side.setPosition(0, 0).setSize(v.w, v.h);
     this.side.tilePositionX = -this.origin.x;
     this.side.tilePositionY = -this.origin.y;
+    if (this.band) {
+      // Mitten über der Karte, so breit wie das Spielbild; die Grafik liegt um ihre Mittellinie, damit sie dort auf- und zuklappt.
+      const cy = this.origin.y + Math.floor(MAP_H / 2), t = this.band.text;
+      this.band.bg.clear().fillStyle(BAND_COLOR, BAND_ALPHA).fillRect(0, -BAND_H / 2, v.w, BAND_H).setPosition(0, cy);
+      t.setPosition(Math.floor((v.w - t.width * BAND_SCALE) / 2), cy - Math.floor((GLYPH_H * BAND_SCALE) / 2));
+    }
   }
 }

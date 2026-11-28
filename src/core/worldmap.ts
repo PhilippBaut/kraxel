@@ -163,6 +163,11 @@ export function openedBetween(m: WorldMap, before: SaveData, after: SaveData): M
   return m.paths.filter((p) => !pathOpen(m, p, before) && pathOpen(m, p, after));
 }
 
+/** Welt geschafft: unter den neu aufgegangenen Wegen ist der normale Ausgang einer Festung (beim ersten Sieg über sie). */
+export function worldCleared(m: WorldMap, opened: readonly MapPath[]): boolean {
+  return opened.some((p) => p.via === 'normal' && nodeById(m, p.from)?.kind === 'fortress');
+}
+
 /** Betretbar: offen und Art Level oder Festung. */
 export function enterable(m: WorldMap, id: string, save: SaveData): boolean {
   const n = nodeById(m, id);

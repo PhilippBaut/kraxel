@@ -19,6 +19,11 @@ describe('Texte des Knopf-Editors', () => {
     expect(missingGlyphs(all)).toEqual([]);
   });
 
+  it('Band nach der Festung: GRASWELT GESCHAFFT!, Pixelschrift kann alles', () => {
+    expect(TEXT.WORLD_CLEAR).toBe('GRASWELT GESCHAFFT!');
+    expect(missingGlyphs(TEXT.WORLD_CLEAR)).toEqual([]);
+  });
+
   it('Karten-Texte: großgeschrieben, ohne ß, Pixelschrift kann alles', () => {
     expect([TEXT.TO_MAP, TEXT.TO_TITLE, TEXT.COMING_SOON, TEXT.NO_TIME]).toEqual(['ZUR KARTE', 'TITEL', 'FORTSETZUNG FOLGT', '-:--']);
     expect(missingGlyphs([TEXT.TO_MAP, TEXT.TO_TITLE, TEXT.COMING_SOON, TEXT.NO_TIME].join(''))).toEqual([]);
