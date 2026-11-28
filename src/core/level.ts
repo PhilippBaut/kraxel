@@ -187,5 +187,19 @@ function platformProblems(l: LevelData, g: TileGrid, p: PlatformSpec, n: number)
       }
     }
   }
+  // Senkrechte Plattform: Der Fahrer überhängt die Plattform seitlich. Ein fester Vorsprung oder eine versteckte Kiste daneben, unter der
+  // Luft ist, schiebt ihn beim Vorbeifahren zur Seite und er fällt durch. Eine Wand, die bis zum Boden durchgeht, ist dagegen harmlos.
+  if (!horizontal) {
+    const solidAt = (cx: number, cy: number) => cx < 0 || cx >= l.width || g.isSolid(cx, cy); // außerhalb zählt als Boden
+    for (const cx of [x0 - 1, x1 + 1]) {
+      for (let cy = Math.max(0, y0 - 1); cy <= y1 - 2; cy++) {
+        const blocks = solidAt(cx, cy) || (cx >= 0 && cx < l.width && g.get(cx, cy) === Cell.HiddenCrate);
+        if (blocks && !solidAt(cx, cy + 1)) {
+          out.push(`${name}: Neben dem Fahrweg klemmt die Zelle ${cx},${cy} den überhängenden Fahrer.`);
+          return out;
+        }
+      }
+    }
+  }
   return out;
 }

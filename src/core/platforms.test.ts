@@ -82,7 +82,22 @@ describe('Freiraum über dem Fahrweg', () => {
     expect(clear(head)).toEqual([]);
     expect(clear(head, { 1: '...B......' })).toHaveLength(1);
     expect(clear(head, { 0: '....B.....' })).toHaveLength(1);
-    expect(clear(head, { 1: '.....B....' })).toEqual([]); // neben der Plattform
+    expect(clear(head, { 1: '.....B....' })).toHaveLength(1); // Fels neben dem Schacht ohne festen Grund darunter: klemmt den überhängenden Fahrer
+  });
+  it('senkrecht: ein Absatz neben dem Schacht mitten im Weg wird gemeldet (links wie rechts)', () => {
+    const head = 'plattform: 3 3 2 v -3 1 stamm'; // Lagen Reihe 0 bis 3, der Fahrer überhängt Spalte 2 und 5
+    const base = ['..........', '..........', '..........', '..........', 'P.........', '##########'];
+    const q = (extra: Record<number, string>) => problems(head, base.map((r, i) => extra[i] ?? r)).filter((p) => p.includes('Plattform'));
+    expect(q({ 1: '..B.......' })).toHaveLength(1); // Vorsprung links, darunter Luft
+    expect(q({ 1: '.....B....' })).toHaveLength(1); // Vorsprung rechts, darunter Luft
+    expect(q({ 1: 'B....B....' })).toHaveLength(1);
+  });
+  it('senkrecht: eine glatte Wand neben dem Schacht, die bis zum Boden reicht, wird angenommen', () => {
+    const head = 'plattform: 3 3 2 v -3 1 stamm';
+    const wall = ['.....B....', '.....B....', '.....B....', '.....B....', 'P....B....', '##########'];
+    expect(problems(head, wall).filter((p) => p.includes('Plattform'))).toEqual([]);
+    const left = ['..B.......', '..B.......', '..B.......', '..B.......', 'P.B.......', '##########'];
+    expect(problems(head, left).filter((p) => p.includes('Plattform'))).toEqual([]);
   });
   it('waagerecht: eine feste Zelle über irgendeiner Lage des Wegs wird gemeldet', () => {
     const head = 'plattform: 1 3 2 h 4 1 stein'; // Spalten 1 bis 6
