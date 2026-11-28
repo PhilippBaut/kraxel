@@ -78,10 +78,30 @@ function play(s: GameState, viewW = 512, camera = false) {
     return out;
   };
   /** Spielt mit `input`, bis `done` gilt (höchstens `max` Schritte). */
-  const until = (input: Partial<Held>, done: () => boolean, max = 400): void => {
-    for (let i = 0; i < max && !done(); i++) step(input);
+  const until = (input: Partial<Held> | (() => Partial<Held>), done: () => boolean, max = 400): void => {
+    for (let i = 0; i < max && !done(); i++) step(typeof input === 'function' ? input() : input);
   };
   return { step, until, cam, events };
+}
+
+/** Hält rechts und springt, sobald eine feste Zelle (etwa ein Felsstein der Item-Gehege) unmittelbar vor Kraxel steht. */
+const hopRight = (s: GameState) => (): Partial<Held> => {
+  const b = s.player.body;
+  const ahead = solidCell(L, Math.floor((b.x + b.w + 3) / TILE), Math.floor((b.y + b.h - 1) / TILE));
+  return { right: true, jump: s.player.grounded && ahead };
+};
+
+/** Läuft dem Item hinterher (springt über Felssteine) und liefert, ob es eingesammelt wurde. */
+function chaseItem(s: GameState, p: ReturnType<typeof play>, max = 400): boolean {
+  const item = s.pickups.find((it) => it.kind === 'item' && !it.taken);
+  if (!item) return true;
+  for (let i = 0; i < max && !item.taken; i++) {
+    const b = s.player.body;
+    const dx = item.body.x + item.body.w / 2 - (b.x + b.w / 2);
+    const ahead = solidCell(L, Math.floor((b.x + b.w + (dx > 0 ? 3 : -3)) / TILE), Math.floor((b.y + b.h - 1) / TILE));
+    p.step(dx > 2 ? { right: true, jump: s.player.grounded && ahead } : dx < -2 ? { left: true, jump: s.player.grounded && ahead } : {});
+  }
+  return item.taken;
 }
 
 /** Lücken in der untersten Reihe als Spaltenbereiche. */
@@ -238,7 +258,7 @@ describe('Level 1-2: Blätterpolster (Lehrstellen)', () => {
         placePlayer(s, run === 'rennen' ? start - 6 : start, CLIFF.feet - 1);
         const p = play(s);
         p.step({}, 2);
-        p.until({ right: true }, () => has(p.events, 'bounce'), 300);
+        p.until(hopRight(s), () => has(p.events, 'bounce'), 300);
         p.until({ right: true }, () => s.player.grounded, 90);
         p.step({}, 20);
         expect(standsAt(s, E1_BLOCK.feet), `Start ${start}, ${run}`).toBe(true);
@@ -335,6 +355,7 @@ describe('Level 1-2: Helm und Schleuder', () => {
     }
     return p.events;
   }
+
   const h = () => crates('helm')[0]!, j = () => crates('sling')[0]!;
 
   it('Helm-Kiste gibt den Helm, die Schleuder-Kiste danach die Schleuder', () => {
@@ -371,6 +392,75 @@ describe('Level 1-2: Helm und Schleuder', () => {
     openAndChase(s, j(), PLATEAU_FEET);
     expect([s.player.helm, s.player.special]).toEqual([true, null]);
   });
+
+  it('Schleuder-Weg mit aktiven Gegnern: Helm holen, über Polster A auf die Hochfläche, Schleuder holen, ohne Tod', () => {
+    const s = createGame(L);
+    const p = play(s, 512, true);
+    const goTo = (cx: number, feet: number, max = 600) => {
+      p.until(() => {
+        const dx = (cx + 0.5) * TILE - (s.player.body.x + s.player.body.w / 2);
+        const b = s.player.body;
+        const ahead = solidCell(L, Math.floor((b.x + b.w + (dx > 0 ? 3 : -3)) / TILE), Math.floor((b.y + b.h - 1) / TILE));
+        return dx > 2 ? { right: true, jump: s.player.grounded && ahead } : dx < -2 ? { left: true, jump: s.player.grounded && ahead } : {};
+      }, () => Math.abs((cx + 0.5) * TILE - (s.player.body.x + s.player.body.w / 2)) <= 2 && standsAt(s, feet), max);
+    };
+    const open = () => {
+      p.step({}, 10);
+      p.step({ jump: true }, 10);
+      p.step({}, 20);
+    };
+    placePlayer(s, CLIFF.cx + 1, CLIFF.feet - 1);
+    p.step({}, 2);
+    goTo(h().cx, CLIFF.feet);
+    open();
+    expect(chaseItem(s, p)).toBe(true);
+    expect(s.player.helm).toBe(true);
+    // weiter über die Mulde, Polster A hebt auf den Absatz, von dort auf die Hochfläche
+    p.until(hopRight(s), () => has(p.events, 'bounce'), 400);
+    p.until({ right: true }, () => s.player.grounded, 90);
+    p.step({}, 20);
+    expect(standsAt(s, E1_BLOCK.feet)).toBe(true);
+    p.step({ right: true }, 20);
+    p.step({ right: true, jump: true }, 20);
+    p.step({ right: true }, 20);
+    p.step({}, 20);
+    expect(standsAt(s, PLATEAU_FEET)).toBe(true);
+    goTo(j().cx, PLATEAU_FEET);
+    open();
+    expect(chaseItem(s, p)).toBe(true);
+    expect(s.player.special).toBe('sling');
+    expect(s.player.helm).toBe(true);
+    expect(has(p.events, 'death')).toBe(false);
+  });
+});
+
+describe('Level 1-2: Item-Gehege', () => {
+  /** Stößt die Kiste von unten an, tritt beiseite und wartet 10 s; liefert das Item. */
+  function openAndWait(crate: { cx: number; cy: number }, feet: number, away: number) {
+    const s = calm();
+    placePlayer(s, crate.cx, feet - 1);
+    const p = play(s);
+    p.step({}, 2);
+    p.step({ jump: true }, 10);
+    p.step({}, 5);
+    placePlayer(s, crate.cx - away, feet - 1); // beiseite treten, damit das Item nicht von selbst an Kraxel vorbeiläuft
+    p.step({}, 600);
+    return { s, p, item: s.pickups.find((it) => it.kind === 'item')! };
+  }
+  const cases = [
+    { name: 'Helm', crate: () => crates('helm')[0]!, feet: CLIFF.feet, away: 4 },
+    { name: 'Schleuder', crate: () => crates('sling')[0]!, feet: PLATEAU_FEET, away: 5 },
+  ];
+
+  for (const c of cases) {
+    it(`${c.name}: nach 10 s liegt das Item noch im Gehege auf der Fläche und ist mit einem einfachen Skript einzusammeln`, () => {
+      const { s, p, item } = openAndWait(c.crate(), c.feet, c.away);
+      expect(item.taken).toBe(false);
+      expect(Math.abs((item.body.y + item.body.h) / TILE - c.feet)).toBeLessThan(0.01); // steht auf der Fläche, nicht darunter
+      expect(Math.abs(item.body.x / TILE - c.crate().cx)).toBeLessThan(5); // höchstens wenige Kacheln neben der Kiste
+      expect(chaseItem(s, p, 300)).toBe(true);
+    });
+  }
 });
 
 describe('Level 1-2: Schnecken auf den Bänken und der Stamm', () => {
@@ -792,7 +882,7 @@ describe('Level 1-2: Weg durch die Abschnitte', () => {
     placePlayer(s, j.cx, PLATEAU_FEET - 1);
     const p = play(s);
     p.step({}, 2);
-    p.until({ right: true }, () => midCol(s) > TERRACE.cx - 1.5, 400);
+    p.until(hopRight(s), () => midCol(s) > TERRACE.cx - 1.5, 400);
     p.step({}, 30);
     expect(standsAt(s, TERRACE.feet)).toBe(true);
     expect(surface(L, TERRACE.cx)).toBe(TERRACE.feet);
