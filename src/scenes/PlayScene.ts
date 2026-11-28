@@ -8,6 +8,7 @@ import { createGame, restartLevel, stepGame, type GameState } from '../core/game
 import type { TileGrid } from '../core/grid.ts';
 import { parseLevel } from '../core/level.ts';
 import { levelTitle } from '../core/level-title.ts';
+import { PIT_ALPHA, pitFadeLength } from '../core/pit-shade.ts';
 import { newRun, runAfterGameOver, runAfterLevel, sessionFor, type RunState } from '../core/run.ts';
 import { loadSave, recordEdelweiss, recordResult, safeStorage, writeSave, type ExitKind, type SaveData } from '../core/save.ts';
 import { FixedStepper } from '../core/stepper.ts';
@@ -32,9 +33,7 @@ const BACKGROUND = [
   { key: 'bg-clouds', factor: 0.32, drift: 3 },
   { key: 'bg-hills', factor: 0.5, drift: 0 },
 ] as const;
-const PIT_SHADE = 0x120a1e, PIT_ALPHA = 0.85;
-/** Ab diesem Anteil der Grubentiefe ist der Verlauf voll dunkel (Entwurf: min(.85, d·1,1)). */
-const PIT_FULL_AT = PIT_ALPHA / 1.1;
+const PIT_SHADE = 0x120a1e;
 /** So lange steht GAME OVER da, dann geht es zurück zur Karte (Entwickler-Zugang: zum Titel) (s). */
 const GAME_OVER_WAIT = 2;
 const GAME_OVER_SCALE = 2;
@@ -385,7 +384,7 @@ export class PlayScene extends Phaser.Scene {
       const sides = [cx - 1, end + 1].filter((c) => c >= 0 && c < g.width).map(groundTop);
       const top = sides.length ? Math.max(...sides) : bottom - TILE;
       const depth = bottom - top, x = cx * TILE, w = (end - cx + 1) * TILE;
-      const fade = Math.round(depth * PIT_FULL_AT);
+      const fade = pitFadeLength(depth);
       shade.fillGradientStyle(PIT_SHADE, PIT_SHADE, PIT_SHADE, PIT_SHADE, 0, 0, PIT_ALPHA, PIT_ALPHA);
       shade.fillRect(x, top, w, fade);
       shade.fillStyle(PIT_SHADE, PIT_ALPHA);
