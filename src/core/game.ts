@@ -1,5 +1,7 @@
 // Spielzustand und der feste Spielschritt.
 import { CRYSTALS_PER_LIFE, START_LIVES, STEP, TILE } from '../config.ts';
+import { createBoss, stepArena, stepBoss, summitSpawn } from './boss.ts';
+import type { BossState } from './boss.ts';
 import { createEnemy, resolvePlayerEnemies, stepEnemies } from './enemies.ts';
 import type { EnemyState } from './enemies.ts';
 import { hitCell, primaryCell, stepBlocks } from './blocks.ts';
@@ -41,6 +43,10 @@ export interface GameState {
   pebbles: Pebble[]; pebbleCooldown: number;
   /** Brocken an der Decke (Steinschlag). */
   rocks: FallingRock[];
+  /** Murmelkönig Grummel (Zeichen `X`) oder null. */
+  boss: BossState | null;
+  /** Bosskampf-Arena: ab `closed` ist die Tür (Spalte `x0 - 1`) fest und der Murmelkönig erwacht. */
+  arena: { x0: number; x1: number; closed: boolean } | null;
 }
 const HURT_ANIM_TIME = 0.3;
 /** Das Gipfelkreuz ist 5 Kacheln hoch; so hoch reicht auch die Zielzone. */
@@ -71,6 +77,15 @@ function initialEnemies(level: LevelData): EnemyState[] {
   return level.spawns.filter((sp) => sp.kind === 'beetle' || sp.kind === 'snail').map(createEnemy);
 }
 
+function initialBoss(level: LevelData): BossState | null {
+  const sp = level.spawns.find((e) => e.kind === 'boss');
+  return sp ? createBoss(sp) : null;
+}
+
+function initialArena(level: LevelData): GameState['arena'] {
+  return level.arena ? { ...level.arena, closed: false } : null;
+}
+
 /** `session` wird als laufender Stand benutzt; `startSession` merkt sich eine Kopie vom Levelanfang.
  *  `opts.helm`: Kraxel startet mit Helm (aus der Spielrunde). */
 export function createGame(level: LevelData, session: Session = createSession(), opts: { helm?: boolean; special?: SpecialItem | null } = {}): GameState {
@@ -79,6 +94,7 @@ export function createGame(level: LevelData, session: Session = createSession(),
     player: createPlayer(level.start.cx, level.start.cy),
     pickups: initialPickups(level, session), enemies: initialEnemies(level), platforms: createPlatforms(level.platforms),
     playerPrevBottom: 0, pebbles: [], pebbleCooldown: 0, rocks: createRocks(level.spawns),
+    boss: initialBoss(level), arena: initialArena(level),
     checkpoint: -1, phase: 'playing', phaseTimer: 0, session, startSession: copySession(session),
     startHelm: opts.helm === true || (opts.special ?? null) !== null, startSpecial: opts.special ?? null,
   };
@@ -125,6 +141,8 @@ export function respawn(s: GameState): void {
   s.enemies = initialEnemies(level);
   s.platforms = createPlatforms(level.platforms);
   s.rocks = createRocks(level.spawns);
+  s.boss = initialBoss(level);
+  s.arena = initialArena(level); // das Raster ist neu, die Tür also offen
   s.pebbles = [];
   s.pebbleCooldown = 0;
   const cp = level.spawns.find((sp) => sp.kind === 'checkpoint' && sp.index === s.checkpoint);
@@ -179,7 +197,9 @@ function touchGoal(s: GameState): GameEvent[] {
     const events = touchGoalAt(s, sp, sp.kind === 'secretGoal' ? 'secret' : 'normal');
     if (events.length) return events;
   }
-  return [];
+  // Nach dem Sieg über den Murmelkönig steht das Gipfelkreuz mittig auf dem Arenaboden.
+  const summit = summitSpawn(s);
+  return summit ? touchGoalAt(s, summit, 'normal') : [];
 }
 
 function touchGoalAt(s: GameState, sp: EntitySpawn, exit: ExitKind): GameEvent[] {
@@ -296,6 +316,7 @@ export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewW
   if (input.actionPressed) events.push(...shoot(s));
   events.push(...stepPebbles(s, dt));
   events.push(...resolvePlayerEnemies(s, input, t));
+  if (s.phase === 'playing') events.push(...stepArena(s), ...stepBoss(s, dt, t, input.jump));
   if (s.phase === 'playing') events.push(...stepRocks(s, dt, t));
   if (s.phase !== 'playing') return events; // gestorben: nichts mehr einsammeln
   if (inWater(s.player.body, s.grid)) return [...events, ...killPlayer(s)]; // Bach: tödlich wie eine Grube, Enzian und Schonzeit helfen nicht

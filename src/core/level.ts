@@ -4,13 +4,15 @@ import type { CrateContent } from './types.ts';
 import { TileGrid } from './grid.ts';
 import type { PlatformSpec } from './platforms.ts';
 
-export type SpawnKind = 'crystal' | 'edelweiss' | 'beetle' | 'snail' | 'checkpoint' | 'goal' | 'secretGoal' | 'fallingRock';
+export type SpawnKind = 'crystal' | 'edelweiss' | 'beetle' | 'snail' | 'checkpoint' | 'goal' | 'secretGoal' | 'fallingRock' | 'boss';
 export interface EntitySpawn { kind: SpawnKind; cx: number; cy: number; index: number }
 export interface LevelData {
   id: string; name: string; world: number; width: number; height: number;
   cells: Uint8Array; crates: Map<number, CrateContent>; spawns: EntitySpawn[]; start: { cx: number; cy: number };
   /** Bewegte Plattformen aus den Kopfzeilen `plattform:`. */
   platforms: PlatformSpec[];
+  /** Bosskampf-Arena aus der Kopfzeile `arena: x0 x1` (Kachelspalten, beide eingeschlossen, genau 16 breit), sonst null. */
+  arena: { x0: number; x1: number } | null;
   /** Wie viele `P` im Text standen; `validateLevel` verlangt genau eines. */
   startCount: number;
 }
@@ -43,7 +45,11 @@ const SPAWN_CHARS: Record<string, { kind: SpawnKind; index: number }> = {
   G: { kind: 'secretGoal', index: 0 },
   /** R: Brocken an der Decke; die Zelle selbst bleibt leer. */
   R: { kind: 'fallingRock', index: 0 },
+  /** X: Murmelkönig Grummel. Die Zelle ist die unten links des 2×2-Körpers (er belegt diese Zelle, die rechts daneben und die beiden darüber). */
+  X: { kind: 'boss', index: 0 },
 };
+/** Breite der Arena in Kacheln. */
+export const ARENA_WIDTH = 16;
 
 /** `cx cy breite achse weg tempo art`, z. B. `4 12 3 h 6 2 stamm`. Zahlen wie `1.5` und negativer Weg sind erlaubt; Breite, Weg und Tempo prüft `validateLevel`. */
 function parsePlatform(value: string, line: number): PlatformSpec {
@@ -66,6 +72,7 @@ export function parseLevel(id: string, text: string): LevelData {
   if (sep < 0) throw new LevelError('Trennzeile --- fehlt', lines.length);
   let name = id, world = 1;
   const platforms: PlatformSpec[] = [];
+  let arena: { x0: number; x1: number } | null = null;
   for (let i = 0; i < sep; i++) {
     const m = /^(\w+):\s*(.*)$/.exec(lines[i]);
     if (!m) {
@@ -77,7 +84,11 @@ export function parseLevel(id: string, text: string): LevelData {
       world = Number(m[2]);
       if (!Number.isInteger(world) || world < 1) throw new LevelError('world muss eine ganze Zahl ab 1 sein', i + 1);
     } else if (m[1] === 'plattform') platforms.push(parsePlatform(m[2], i + 1));
-    else throw new LevelError(`Unbekannte Kopfzeile "${m[1]}"`, i + 1);
+    else if (m[1] === 'arena') {
+      const f = m[2].trim().split(/\s+/).map(Number);
+      if (f.length !== 2 || !f.every((n) => Number.isInteger(n))) throw new LevelError('arena braucht: x0 x1 (ganze Zahlen)', i + 1);
+      arena = { x0: f[0]!, x1: f[1]! };
+    } else throw new LevelError(`Unbekannte Kopfzeile "${m[1]}"`, i + 1);
   }
   const rows = lines.slice(sep + 1);
   while (rows.length && rows[rows.length - 1].trim() === '') rows.pop();
@@ -110,7 +121,7 @@ export function parseLevel(id: string, text: string): LevelData {
 
   // Steinmännchen zählen von links nach rechts.
   spawns.filter((s) => s.kind === 'checkpoint').sort((a, b) => a.cx - b.cx).forEach((s, i) => { s.index = i; });
-  return { id, name, world, width, height, cells, crates, spawns, start, platforms, startCount };
+  return { id, name, world, width, height, cells, crates, spawns, start, platforms, arena, startCount };
 }
 
 export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requireGoal: boolean }): string[] {
@@ -119,8 +130,13 @@ export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requ
 
   if (l.startCount !== 1) problems.push(`Der Start P muss genau einmal vorkommen, gefunden: ${l.startCount}.`);
 
+  // Ziel: genau ein Z, oder (ohne Z) der Murmelkönig X, nach dessen Sieg das Gipfelkreuz auf dem Arenaboden erscheint.
   const goals = l.spawns.filter((s) => s.kind === 'goal').length;
-  if (o.requireGoal && goals !== 1) problems.push(`Das Gipfelkreuz Z muss genau einmal vorkommen, gefunden: ${goals}.`);
+  const bosses = l.spawns.filter((s) => s.kind === 'boss');
+  if (o.requireGoal && goals !== 1 && !(goals === 0 && bosses.length === 1)) {
+    problems.push(`Das Gipfelkreuz Z muss genau einmal vorkommen (oder der Murmelkönig X ersetzt es), gefunden: ${goals}.`);
+  }
+  problems.push(...arenaProblems(l, g, bosses));
 
   const secrets = l.spawns.filter((s) => s.kind === 'secretGoal').length;
   if (secrets > 1) problems.push(`Das geheime Gipfelkreuz G darf höchstens einmal vorkommen, gefunden: ${secrets}.`);
@@ -134,13 +150,37 @@ export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requ
 
   if (l.startCount > 0 && g.isSolid(l.start.cx, l.start.cy)) problems.push('Der Start liegt in einer festen Zelle.');
   for (const s of l.spawns) {
-    if (g.isSolid(s.cx, s.cy)) problems.push(`${s.kind} bei ${s.cx},${s.cy} liegt in einer festen Zelle.`);
+    if (s.kind !== 'boss' && g.isSolid(s.cx, s.cy)) problems.push(`${s.kind} bei ${s.cx},${s.cy} liegt in einer festen Zelle.`);
     if ((s.kind === 'beetle' || s.kind === 'snail') && !g.isSolid(s.cx, s.cy + 1) && !startsOnPlatform(l, s)) {
       problems.push(`${s.kind} bei ${s.cx},${s.cy} hat keinen festen Boden darunter.`);
     }
   }
   l.platforms.forEach((p, i) => problems.push(...platformProblems(l, g, p, i + 1)));
   return problems;
+}
+
+/** `arena`: 16 breit, im Level, mit Platz für die Tür links davon. X: höchstens einmal, nur mit Arena, darin, mit freiem Körper und Boden. Kein Z in der Arena. */
+function arenaProblems(l: LevelData, g: TileGrid, bosses: EntitySpawn[]): string[] {
+  const out: string[] = [];
+  const a = l.arena;
+  if (bosses.length > 1) out.push(`Der Murmelkönig X darf höchstens einmal vorkommen, gefunden: ${bosses.length}.`);
+  if (!a) {
+    if (bosses.length > 0) out.push('Der Murmelkönig X braucht die Kopfzeile arena: x0 x1.');
+    return out;
+  }
+  if (a.x1 - a.x0 + 1 !== ARENA_WIDTH) out.push(`arena ${a.x0} ${a.x1} muss genau ${ARENA_WIDTH} Kacheln breit sein.`);
+  if (a.x0 < 1 || a.x1 >= l.width) out.push(`arena ${a.x0} ${a.x1} liegt nicht im Level (Spalte 1 bis ${l.width - 1}; links bleibt Platz für die Tür).`);
+  if (bosses.length === 0) out.push('Die arena braucht den Murmelkönig X.');
+  for (const z of l.spawns) {
+    if (z.kind === 'goal' && z.cx >= a.x0 && z.cx <= a.x1) out.push(`Das Gipfelkreuz Z bei ${z.cx},${z.cy} liegt in der Arena; es erscheint dort erst nach dem Sieg.`);
+  }
+  for (const b of bosses) {
+    if (b.cx < a.x0 || b.cx + 1 > a.x1) out.push(`Der Murmelkönig X bei ${b.cx},${b.cy} liegt nicht in der Arena.`);
+    const free = [[b.cx, b.cy], [b.cx + 1, b.cy], [b.cx, b.cy - 1], [b.cx + 1, b.cy - 1]].every(([x, y]) => !g.isSolid(x!, y!));
+    if (!free) out.push(`Der Murmelkönig X bei ${b.cx},${b.cy} braucht 2×2 freie Zellen.`);
+    if (!g.isSolid(b.cx, b.cy + 1) || !g.isSolid(b.cx + 1, b.cy + 1)) out.push(`Der Murmelkönig X bei ${b.cx},${b.cy} braucht festen Boden unter beiden Zellen.`);
+  }
+  return out;
 }
 
 /** Steht die Figur auf dem Startplatz einer Plattform (Plattform liegt in der Zelle darunter)? */

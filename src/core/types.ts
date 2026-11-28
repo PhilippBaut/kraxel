@@ -27,6 +27,7 @@ export type GameEvent =
   | { type: 'itemSpawn'; item: ItemKind; cx: number; cy: number } | { type: 'powerUp'; item: ItemKind }
   | { type: 'stomp'; x: number; y: number } | { type: 'enemyDefeated'; x: number; y: number }
   | { type: 'shoot' } | { type: 'pebblePop'; x: number; y: number }
+  | { type: 'arenaClose' } | { type: 'bossDig' } | { type: 'bossPop' } | { type: 'bossHit'; hits: number } | { type: 'bossDefeated' } | { type: 'bossThrow' }
   | { type: 'enzianStart' } | { type: 'enzianEnd' }
   | { type: 'hurt' } | { type: 'death' } | { type: 'respawn' } | { type: 'gameOver' }
   | { type: 'checkpoint'; index: number } | { type: 'edelweiss'; index: number }

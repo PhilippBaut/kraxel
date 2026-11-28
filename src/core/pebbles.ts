@@ -1,5 +1,6 @@
 // Kiesel: Kraxels Schleuder schießt höchstens zwei in leichtem Bogen.
 import { moveBody, overlaps } from './collide.ts';
+import { bossHittable } from './boss.ts';
 import { defeat } from './enemies.ts';
 import type { GameState } from './game.ts';
 import type { Body, GameEvent } from './types.ts';
@@ -60,6 +61,7 @@ export function stepPebbles(s: GameState, dt: number): GameEvent[] {
       gone = true;
       break;
     }
+    if (!gone && s.boss && bossHittable(s.boss) && overlaps(b, s.boss.body)) gone = true; // am Murmelkönig prallt er ab, ohne Wirkung
     if (gone) events.push(popEvent(p));
     else alive.push(p);
   }
