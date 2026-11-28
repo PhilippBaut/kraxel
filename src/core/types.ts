@@ -22,6 +22,7 @@ export type GameEvent =
   | { type: 'pound' } | { type: 'poundLand'; x: number; y: number }
   | { type: 'bump'; cx: number; cy: number } | { type: 'bounce'; cx: number; cy: number } | { type: 'crateOpen'; cx: number; cy: number }
   | { type: 'rockBreak'; cx: number; cy: number }
+  | { type: 'rockWarn'; cx: number; cy: number } | { type: 'rockFall'; cx: number; cy: number }
   | { type: 'crystal'; x: number; y: number; fromCrate: boolean }
   | { type: 'itemSpawn'; item: ItemKind; cx: number; cy: number } | { type: 'powerUp'; item: ItemKind }
   | { type: 'stomp'; x: number; y: number } | { type: 'enemyDefeated'; x: number; y: number }

@@ -4,7 +4,7 @@ import type { CrateContent } from './types.ts';
 import { TileGrid } from './grid.ts';
 import type { PlatformSpec } from './platforms.ts';
 
-export type SpawnKind = 'crystal' | 'edelweiss' | 'beetle' | 'snail' | 'checkpoint' | 'goal' | 'secretGoal';
+export type SpawnKind = 'crystal' | 'edelweiss' | 'beetle' | 'snail' | 'checkpoint' | 'goal' | 'secretGoal' | 'fallingRock';
 export interface EntitySpawn { kind: SpawnKind; cx: number; cy: number; index: number }
 export interface LevelData {
   id: string; name: string; world: number; width: number; height: number;
@@ -41,6 +41,8 @@ const SPAWN_CHARS: Record<string, { kind: SpawnKind; index: number }> = {
   '3': { kind: 'edelweiss', index: 2 }, k: { kind: 'beetle', index: 0 }, s: { kind: 'snail', index: 0 },
   S: { kind: 'checkpoint', index: 0 }, Z: { kind: 'goal', index: 0 },
   G: { kind: 'secretGoal', index: 0 },
+  /** R: Brocken an der Decke; die Zelle selbst bleibt leer. */
+  R: { kind: 'fallingRock', index: 0 },
 };
 
 /** `cx cy breite achse weg tempo art`, z. B. `4 12 3 h 6 2 stamm`. Zahlen wie `1.5` und negativer Weg sind erlaubt; Breite, Weg und Tempo prüft `validateLevel`. */

@@ -14,6 +14,8 @@ import type { PlayerState } from './player.ts';
 import { collectPickups, createPickup, stepPickups } from './pickups.ts';
 import type { PickupState } from './pickups.ts';
 import { shoot, stepPebbles } from './pebbles.ts';
+import { createRocks, stepRocks } from './rockfall.ts';
+import type { FallingRock } from './rockfall.ts';
 import type { Pebble } from './pebbles.ts';
 import { jumpGravity } from './tuning.ts';
 import type { Tuning } from './tuning.ts';
@@ -37,6 +39,8 @@ export interface GameState {
   startSpecial: SpecialItem | null;
   /** Fliegende Kiesel der Schleuder und die Abklingzeit bis zum nächsten Schuss. */
   pebbles: Pebble[]; pebbleCooldown: number;
+  /** Brocken an der Decke (Steinschlag). */
+  rocks: FallingRock[];
 }
 const HURT_ANIM_TIME = 0.3;
 /** Das Gipfelkreuz ist 5 Kacheln hoch; so hoch reicht auch die Zielzone. */
@@ -74,7 +78,7 @@ export function createGame(level: LevelData, session: Session = createSession(),
     level, grid: TileGrid.fromLevel(level), crates: new Map(level.crates), multi: new Map(),
     player: createPlayer(level.start.cx, level.start.cy),
     pickups: initialPickups(level, session), enemies: initialEnemies(level), platforms: createPlatforms(level.platforms),
-    playerPrevBottom: 0, pebbles: [], pebbleCooldown: 0,
+    playerPrevBottom: 0, pebbles: [], pebbleCooldown: 0, rocks: createRocks(level.spawns),
     checkpoint: -1, phase: 'playing', phaseTimer: 0, session, startSession: copySession(session),
     startHelm: opts.helm === true || (opts.special ?? null) !== null, startSpecial: opts.special ?? null,
   };
@@ -120,6 +124,7 @@ export function respawn(s: GameState): void {
   s.pickups = initialPickups(level, s.session);
   s.enemies = initialEnemies(level);
   s.platforms = createPlatforms(level.platforms);
+  s.rocks = createRocks(level.spawns);
   s.pebbles = [];
   s.pebbleCooldown = 0;
   const cp = level.spawns.find((sp) => sp.kind === 'checkpoint' && sp.index === s.checkpoint);
@@ -291,6 +296,7 @@ export function stepGame(s: GameState, input: InputFrame, t: Tuning, view: ViewW
   if (input.actionPressed) events.push(...shoot(s));
   events.push(...stepPebbles(s, dt));
   events.push(...resolvePlayerEnemies(s, input, t));
+  if (s.phase === 'playing') events.push(...stepRocks(s, dt, t));
   if (s.phase !== 'playing') return events; // gestorben: nichts mehr einsammeln
   if (inWater(s.player.body, s.grid)) return [...events, ...killPlayer(s)]; // Bach: tödlich wie eine Grube, Enzian und Schonzeit helfen nicht
   events.push(...collectPickups(s));

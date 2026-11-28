@@ -7,6 +7,7 @@ import type { GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import type { PickupState } from '../core/pickups.ts';
 import type { PlatformState } from '../core/platforms.ts';
+import { ROCK_WARN_TIME } from '../core/rockfall.ts';
 import { platformSprite, WATER_TOP_FRAMES } from '../gfx/sprites.ts';
 import { Cell } from '../core/types.ts';
 import type { GameEvent } from '../core/types.ts';
@@ -28,6 +29,10 @@ const DEBRIS_GRAVITY = 700, DEBRIS_TIME = 1;
 const DEBRIS_START: readonly (readonly [number, number, number, number])[] = [
   [4, 4, -60, -210], [12, 4, 60, -210], [4, 12, -40, -130], [12, 12, 40, -130],
 ];
+/** Steinschlag-Warnung: alle DUST_EVERY s rieselt ein Staubkorn (DUST_LIFE s lang), der Brocken zittert, die Kamera rumpelt leicht. */
+const DUST_EVERY = 0.025, DUST_LIFE = 0.5, DUST_GRAVITY = 160;
+const DUST_COLORS = [0xe0d0b0, 0x8a7a62] as const;
+const RUMBLE_PX = 1;
 /** Käfer: alle 0,15 s wird gespiegelt, das gibt zwei Laufbilder. */
 const BEETLE_STEP_TIME = 0.15;
 const SHAKE_MS = 120, SHAKE_PX = 2;
@@ -43,6 +48,7 @@ interface Block { img: Image; bumpAt: number }
 interface Pop { img: Image; x: number; y: number; start: number }
 /** `max`: größte Armlänge des Kreuzes in px, `color`: Farbe (weiß beim Kristall, golden beim Enzian). */
 interface Sparkle { x: number; y: number; start: number; max?: number; color?: number }
+interface Dust { x: number; y: number; vx: number; vy: number; start: number; color: number }
 interface Debris { img: Image; x: number; y: number; vx: number; vy: number; start: number }
 
 function blockTexture(cell: Cell): string | null {
@@ -81,6 +87,11 @@ export class WorldView {
   private sparkCount = 0;
   private sparkAt = -Infinity;
   private enemies: Image[] = [];
+  /** Deckenbrocken in der Reihenfolge von `GameState.rocks`, Zeit des letzten Staubkorns je Brocken, Staubkörner und ihr Zähler. */
+  private rocks: Image[] = [];
+  private rockDustAt: number[] = [];
+  private dust: Dust[] = [];
+  private dustCount = 0;
   /** Steinmännchen nach Index; Kreuz am Ziel. */
   private cairns: Image[] = [];
   private crosses: Image[] = [];
@@ -117,6 +128,10 @@ export class WorldView {
     this.enemies = [];
     for (const img of this.pebbles) img.destroy();
     this.pebbles = [];
+    for (const img of this.rocks) img.destroy();
+    this.rocks = s.rocks.map((r) => this.scene.add.image(r.body.x, r.body.y, 'fallRock').setOrigin(0).setDepth(DEPTH.enemy));
+    this.rockDustAt = s.rocks.map(() => -Infinity);
+    this.dust = [];
     for (const p of this.pops) p.img.destroy();
     for (const d of this.debris) d.img.destroy();
     this.pops = [];
@@ -159,6 +174,11 @@ export class WorldView {
           break;
         case 'rockBreak': this.breakRock(e.cx, e.cy, now); break;
         case 'bounce': this.bump(e.cx, e.cy, now); break;
+        case 'rockWarn': {
+          const cam = this.scene.cameras.main;
+          cam.shake(ROCK_WARN_TIME * 1000, new Phaser.Math.Vector2(RUMBLE_PX / cam.width, 0));
+          break;
+        }
         case 'pebblePop': this.sparkles.push({ x: Math.round(e.x), y: Math.round(e.y), start: now, max: POP_SPARK }); break;
         case 'poundLand': {
           const cam = this.scene.cameras.main;
@@ -182,9 +202,11 @@ export class WorldView {
     this.syncPickups(s.pickups, time);
     this.syncEnemies(s.enemies, time);
     this.syncPebbles(s.pebbles);
+    this.syncRocks(s, time, dt);
     this.syncPops(time);
     this.syncDebris(time, dt);
     this.drawSparkles(time);
+    this.drawDust(time, dt);
   }
 
   private syncPlayer(s: GameState, time: number): void {
@@ -221,6 +243,42 @@ export class WorldView {
       img.setVisible(true).setPosition(Math.round(list[i]!.body.x), Math.round(list[i]!.body.y));
     }
     for (let i = list.length; i < this.pebbles.length; i++) this.pebbles[i]!.setVisible(false);
+  }
+
+  /** Brocken: hängend, zitternd (Warnung, dazu Staub), fallend oder weg. */
+  private syncRocks(s: GameState, time: number, dt: number): void {
+    s.rocks.forEach((r, i) => {
+      const img = this.rocks[i];
+      if (!img) return;
+      img.setVisible(r.state !== 'gone');
+      const b = r.body;
+      const shake = r.state === 'warn' ? [-1, 0, 1, 0][Math.floor(time * 40) % 4]! : 0;
+      img.setPosition(Math.round(b.x) + shake, Math.round(b.y));
+      if (r.state !== 'warn' || time - this.rockDustAt[i]! < DUST_EVERY) return;
+      this.rockDustAt[i] = time;
+      // Deterministisch statt Zufall: Zähler mit Primzahl-Schritten verteilt die Körner über die Brockenbreite.
+      const n = this.dustCount++;
+      this.dust.push({
+        x: Math.round(b.x) + ((n * 5) % b.w), y: Math.round(b.y + b.h), vx: (((n * 3) % 5) - 2) * 6, vy: 20 + ((n * 7) % 4) * 8,
+        start: time, color: DUST_COLORS[n % 2]!,
+      });
+    });
+  }
+
+  /** Staubkörner als 1×1-Punkte (die hellen 2×2), die nach unten rieseln und verblassen. */
+  private drawDust(time: number, dt: number): void {
+    const g = this.fx;
+    this.dust = this.dust.filter((d) => {
+      const age = time - d.start;
+      if (age >= DUST_LIFE) return false;
+      d.vy += DUST_GRAVITY * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      g.fillStyle(d.color, 1 - 0.6 * age / DUST_LIFE);
+      const size = d.color === DUST_COLORS[0] ? 2 : 1;
+      g.fillRect(Math.round(d.x), Math.round(d.y), size, size);
+      return true;
+    });
   }
 
   private addBlock(cx: number, cy: number): void {

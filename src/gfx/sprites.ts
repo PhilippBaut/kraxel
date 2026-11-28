@@ -17,7 +17,7 @@ export type SpriteName =
   | 'beetle' | 'beetleFlat' | 'snail' | 'stone' | 'cloud' | 'groundTop' | 'groundFill'
   | 'pebble' | 'leafPad'
   | 'log' | 'log3' | 'log4' | 'stoneSlab' | 'stoneSlab3' | 'stoneSlab4' | 'waterTop1' | 'waterTop2' | 'water'
-  | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'iSling' | 'cross' | 'crossGold' | 'cairn' | 'cairnFlag' | 'debris';
+  | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'iSling' | 'cross' | 'crossGold' | 'cairn' | 'cairnFlag' | 'debris' | 'fallRock';
 
 export const KRAXEL_FRAMES: readonly SpriteName[] = KRAXEL_NAMES;
 
@@ -605,6 +605,22 @@ const DEBRIS = [
   '........',
 ];
 
+/** Deckenbrocken (12×12) für den Steinschlag: rundlicher Fels, hell oben links, Schatten unten rechts, ein Riss. */
+const FALL_ROCK = [
+  '...oooooo...',
+  '..ommMMMno..',
+  '.ommMMMMMno.',
+  'ommMMMnMMMno',
+  'omMMMnnMMMno',
+  'oMMMMnMMMMno',
+  'oMMMMMMMnnno',
+  'oMMnMMMMMnno',
+  '.oMMMMMnnno.',
+  '.onMMnnnnno.',
+  '..onnnnnno..',
+  '...oooooo...',
+];
+
 // ---------------------------------------------------------------- HUD und Kulisse
 
 const I_CRYSTAL = ['...o...', '..oXo..', '.oZXxo.', 'oZXXxxo', '.oXxxo.', '..oxo..', '...o...'];
@@ -663,7 +679,7 @@ export function buildSprites(): Record<string, PixelGrid> {
     waterTop1: waterTop(0), waterTop2: waterTop(1), water: waterDeep(), snail: snail(), stone: stone(), cloud: cloud(),
     groundTop: groundTop(), groundFill: groundFill(),
     iCrystal: strs(I_CRYSTAL), iEdel, iEdelOff: recolor(iEdel, { V: 'w', Y: 'w' }), iHead: strs(I_HEAD), iSling: strs(I_SLING),
-    cross: crossGrid, crossGold: recolor(crossGrid, { J: 'Q', j: 'q' }), cairn: base, cairnFlag: cairnFlag(base), debris: strs(DEBRIS),
+    cross: crossGrid, crossGold: recolor(crossGrid, { J: 'Q', j: 'q' }), cairn: base, cairnFlag: cairnFlag(base), debris: strs(DEBRIS), fallRock: strs(FALL_ROCK),
   };
   return { ...sprites, ...helmets };
 }

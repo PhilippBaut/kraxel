@@ -3,7 +3,7 @@
 import type { GameEvent } from '../core/types.ts';
 
 export type SoundName = 'jump' | 'wallJump' | 'bump' | 'crate' | 'crystal' | 'item' | 'powerUp' | 'stomp' | 'pound' | 'rockBreak'
-  | 'hurt' | 'death' | 'checkpoint' | 'edelweiss' | 'extraLife' | 'goal' | 'select' | 'shoot' | 'sparkle' | 'bounce';
+  | 'hurt' | 'death' | 'checkpoint' | 'edelweiss' | 'extraLife' | 'goal' | 'select' | 'shoot' | 'sparkle' | 'bounce' | 'rumble';
 
 /** Eine Note: Frequenz f (Hz), optional gleitend nach f2, Dauer d (s). Bei Rauschen zählt nur d. */
 export interface SoundDef {
@@ -36,6 +36,8 @@ export const SOUND_DEFS: Readonly<Record<SoundName, SoundDef>> = {
   shoot: { wave: 'triangle', vol: 0.8, notes: [{ f: 180, f2: 560, d: 0.05 }, { f: 560, f2: 260, d: 0.07 }] },
   // Enzian: glitzernde Gleittöne in wechselnder Richtung, bewusst keine Tonleiter.
   sparkle: { wave: 'sine', vol: 0.75, notes: [{ f: 1200, f2: 2400, d: 0.08 }, { f: 1900, f2: 950, d: 0.08 }, { f: 1500, f2: 3000, d: 0.14 }, { f: 2600, f2: 2000, d: 0.12 }] },
+  // Steinschlag-Vorwarnung: tiefes, unruhiges Grollen, rund 0,6 s.
+  rumble: { wave: 'sawtooth', vol: 0.55, notes: [{ f: 70, f2: 48, d: 0.15 }, { f: 62, f2: 44, d: 0.15 }, { f: 72, f2: 46, d: 0.15 }, { f: 58, f2: 38, d: 0.15 }] },
   // Blätterpolster: federndes Boing.
   bounce: { wave: 'triangle', vol: 0.9, notes: [{ f: 200, f2: 620, d: 0.08 }, { f: 620, f2: 360, d: 0.07 }, { f: 360, f2: 520, d: 0.08 }] },
 };
@@ -45,7 +47,7 @@ export const EVENT_SOUND: Readonly<Partial<Record<GameEvent['type'], SoundName>>
   powerUp: 'powerUp', stomp: 'stomp', enemyDefeated: 'stomp', poundLand: 'pound', rockBreak: 'rockBreak',
   hurt: 'hurt', death: 'death', checkpoint: 'checkpoint', edelweiss: 'edelweiss', extraLife: 'extraLife', goal: 'goal',
   // Der Kiesel-Treffer läuft über `enemyDefeated` (Stomp-Klang); das Zerplatzen an der Wand bleibt still.
-  shoot: 'shoot', bounce: 'bounce', enzianStart: 'sparkle',
+  shoot: 'shoot', bounce: 'bounce', enzianStart: 'sparkle', rockWarn: 'rumble',
 };
 
 /**
