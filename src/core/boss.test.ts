@@ -113,6 +113,21 @@ describe('Murmelkönig: Prüfung der Kopfzeile und von X', () => {
     rows[10] = '#P.....Z......X....#';
     expect(check(rows).join('|')).toMatch(/Z/);
   });
+  it('mit X darf Z auch außerhalb der Arena nicht vorkommen (nur ein Ausgang)', () => {
+    const rows = [...ROWS];
+    rows[10] = '#Z............X....#'; // Z in Spalte 1, außerhalb der Arena
+    const p = check(rows).join('|');
+    expect(p).toMatch(/Z bei 1,10/);
+    expect(check(rows, HEADER, false).join('|')).toMatch(/Z bei 1,10/);
+  });
+  it('über dem Arenaboden müssen 5 Kacheln frei sein, quer über die ganze Arena', () => {
+    const low = [...ROWS];
+    low[6] = '#' + '.'.repeat(5) + '#' + '.'.repeat(12) + '#'; // Brocken in Reihe 6 (5 Kacheln über Reihe 11), Spalte 6
+    expect(check(low).join('|')).toMatch(/5 freie Kacheln/);
+    const ok = [...ROWS];
+    ok[5] = '#' + '.'.repeat(5) + '#' + '.'.repeat(12) + '#'; // Reihe 5 ist schon die sechste Kachel
+    expect(check(ok)).toEqual([]);
+  });
   it('X braucht Platz und Boden unter dem Körper', () => {
     const rows = [...ROWS];
     rows[9] = '#' + '.'.repeat(14) + '#' + '.'.repeat(3) + '#';
@@ -162,6 +177,9 @@ describe('Arena: Tür', () => {
     expect(boss(s)).toMatchObject({ phase: 'wait', t: 0, hits: 0, invuln: 0, throwsLeft: 0, rocks: [] });
     expect(boss(s).body.x).toBe(14 * TILE);
     expect(boss(s)).not.toBe(b);
+    const start = { x: 1 * TILE + (TILE - s.player.body.w) / 2, y: 11 * TILE - s.player.body.h };
+    expect(s.player.body).toMatchObject(start);
+    expect(s.phase).toBe('playing');
   });
   it('vor dem Schließen ruht der Murmelkönig', () => {
     const s = gameFrom(ROWS, undefined, HEADER);
@@ -198,7 +216,7 @@ describe('Murmelkönig: Phasenfolge', () => {
     expect(dur(4)).toBeGreaterThan(steps(0.4)); // ca. 3 Kacheln Sprunghöhe
     expect(dur(4)).toBeLessThan(steps(1));
     expect(Math.abs(dur(5) - steps(1.2))).toBeLessThanOrEqual(1);
-    expect(Math.abs(dur(6) - steps(0.4))).toBeLessThanOrEqual(1);
+    expect(Math.abs(dur(6) - steps(0.6))).toBeLessThanOrEqual(1);
     expect(types(events)).toEqual(expect.arrayContaining(['bossDig', 'bossPop', 'bossThrow']));
   });
   it('der Sprung ist etwa 3 Kacheln hoch', () => {
@@ -207,18 +225,13 @@ describe('Murmelkönig: Phasenfolge', () => {
     setPhase(s, 'tremble', 0.49);
     let minY = boss(s).body.y;
     const base = boss(s).body.y;
-    until(s, () => boss(s).phase === 'stunned', 120);
-    // minY wurde nur am Ende gemessen; Scheitel in einem zweiten Lauf messen
-    const s2 = arena();
-    s2.player.enzian = 999;
-    setPhase(s2, 'tremble', 0.49);
-    for (let i = 0; i < 80 && boss(s2).phase !== 'stunned'; i++) {
-      runGame(s2, [[{}, 1]]);
-      minY = Math.min(minY, boss(s2).body.y);
+    for (let i = 0; i < 80 && boss(s).phase !== 'stunned'; i++) {
+      runGame(s, [[{}, 1]]);
+      minY = Math.min(minY, boss(s).body.y);
     }
     expect(base - minY).toBeGreaterThan(2.7 * TILE);
     expect(base - minY).toBeLessThan(3.3 * TILE);
-    expect(boss(s2).body.y).toBe(base); // landet wieder auf dem Boden
+    expect(boss(s).body.y).toBe(base); // landet wieder auf dem Boden
   });
   it('bossDig beim Eingraben, bossPop beim Herausspringen', () => {
     const s = arena();
@@ -402,13 +415,26 @@ describe('Murmelkönig: Treffer', () => {
     expect(s.phase).toBe('playing');
     expect(boss(s).hits).toBe(0);
     expect(boss(s).phase).not.toBe('defeated');
-    const s2 = arena();
-    s2.player.enzian = 30;
-    setPhase(s2, 'stunned');
-    dropOnHead(s2);
-    const ev2 = runGame(s2, [[{}, 40]]);
-    expect(types(ev2)).not.toContain('bossHit');
-    expect(boss(s2).hits).toBe(0);
+  });
+  it('mit Enzian zählt Draufspringen in Benommen als Treffer, ohne Schaden und mit Abprall', () => {
+    const s = arena();
+    s.player.enzian = 30;
+    setPhase(s, 'stunned');
+    dropOnHead(s);
+    const { events } = until(s, () => boss(s).hits > 0, 60);
+    expect(events).toContainEqual({ type: 'bossHit', hits: 1 });
+    expect(types(events)).not.toContain('hurt');
+    expect(s.player.body.vy).toBeLessThan(0);
+  });
+  it('mit Enzian trifft bloße Berührung in Benommen den Murmelkönig nicht', () => {
+    const s = arena();
+    s.player.enzian = 30;
+    setPhase(s, 'stunned');
+    placePlayer(s, 14, 10);
+    const ev = runGame(s, [[{}, 20]]);
+    expect(types(ev)).not.toContain('bossHit');
+    expect(boss(s).hits).toBe(0);
+    expect(boss(s).phase).toBe('stunned');
   });
 });
 
@@ -458,7 +484,7 @@ describe('Murmelkönig: Tempo steigt, Steinwurf', () => {
     s.player.helm = true;
     setPhase(s, 'stunned', 1.19);
     placePlayer(s, 4, 10);
-    const ev = runGame(s, [[{}, 2]]);
+    const ev = runGame(s, [[{}, steps(0.2) + 3]]);
     expect(types(ev)).toContain('bossThrow');
     expect(boss(s).rocks).toHaveLength(1);
     const { events } = until(s, () => !s.player.helm || boss(s).rocks.length === 0, 120);
@@ -470,11 +496,28 @@ describe('Murmelkönig: Tempo steigt, Steinwurf', () => {
     s.player.enzian = 999;
     setPhase(s, 'stunned', 1.19);
     placePlayer(s, 4, 10);
-    runGame(s, [[{}, 2]]);
+    runGame(s, [[{}, steps(0.2) + 3]]);
     expect(boss(s).rocks).toHaveLength(1);
     s.player.body.x += 80; // Kraxel weicht aus
     runGame(s, [[{}, 80]]);
     expect(boss(s).rocks).toHaveLength(0);
+  });
+});
+
+describe('Murmelkönig: Schonfrist am Wurfbeginn', () => {
+  it('0,2 s lang tut Berührung nicht weh und der erste Stein ist noch nicht los; danach trifft sie', () => {
+    const s = arena();
+    s.player.helm = true;
+    setPhase(s, 'stunned', 1.19);
+    placePlayer(s, 14, 10); // steht im Murmelkönig
+    const early = runGame(s, [[{}, steps(0.2) - 3]]);
+    expect(boss(s).phase).toBe('throw');
+    expect(types(early)).not.toContain('hurt');
+    expect(types(early)).not.toContain('bossThrow');
+    expect(boss(s).rocks).toHaveLength(0);
+    const later = runGame(s, [[{}, 10]]);
+    expect(types(later)).toContain('hurt');
+    expect(types(later)).toContain('bossThrow');
   });
 });
 
@@ -535,8 +578,9 @@ describe('Murmelkönig: Sieg', () => {
 });
 
 describe('Murmelkönig: Ausweichen', () => {
-  it('ein Ausweich-Skript übersteht Hügel, Herausspringen und Steinwurf ohne hurt', () => {
+  it.each([0, 1, 2])('ein Ausweich-Skript übersteht Hügel, Herausspringen und Steinwurf ohne hurt (Treffer: %i)', (hits) => {
     const s = arena();
+    boss(s).hits = hits; // schneller Hügel, kürzeres Warten, zwei Steine
     s.player.helm = true; // jeder Treffer wäre sichtbar als hurt und würde den Helm kosten
     placePlayer(s, 9, 10);
     const sampler = new InputSampler();

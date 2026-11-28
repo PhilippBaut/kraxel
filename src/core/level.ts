@@ -50,6 +50,8 @@ const SPAWN_CHARS: Record<string, { kind: SpawnKind; index: number }> = {
 };
 /** Breite der Arena in Kacheln. */
 export const ARENA_WIDTH = 16;
+/** So viele Kacheln über dem Arenaboden bleiben frei (Sprung 3 Kacheln, Gipfelkreuz 5 Kacheln). */
+export const ARENA_HEADROOM = 5;
 
 /** `cx cy breite achse weg tempo art`, z. B. `4 12 3 h 6 2 stamm`. Zahlen wie `1.5` und negativer Weg sind erlaubt; Breite, Weg und Tempo prüft `validateLevel`. */
 function parsePlatform(value: string, line: number): PlatformSpec {
@@ -159,7 +161,7 @@ export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requ
   return problems;
 }
 
-/** `arena`: 16 breit, im Level, mit Platz für die Tür links davon. X: höchstens einmal, nur mit Arena, darin, mit freiem Körper und Boden. Kein Z in der Arena. */
+/** `arena`: 16 breit, im Level, mit Platz für die Tür links davon. X: höchstens einmal, nur mit Arena, darin, mit freiem Körper und Boden. Kein Z, wenn ein X da ist. */
 function arenaProblems(l: LevelData, g: TileGrid, bosses: EntitySpawn[]): string[] {
   const out: string[] = [];
   const a = l.arena;
@@ -172,12 +174,20 @@ function arenaProblems(l: LevelData, g: TileGrid, bosses: EntitySpawn[]): string
   if (a.x0 < 1 || a.x1 >= l.width) out.push(`arena ${a.x0} ${a.x1} liegt nicht im Level (Spalte 1 bis ${l.width - 1}; links bleibt Platz für die Tür).`);
   if (bosses.length === 0) out.push('Die arena braucht den Murmelkönig X.');
   for (const z of l.spawns) {
-    if (z.kind === 'goal' && z.cx >= a.x0 && z.cx <= a.x1) out.push(`Das Gipfelkreuz Z bei ${z.cx},${z.cy} liegt in der Arena; es erscheint dort erst nach dem Sieg.`);
+    if (z.kind === 'goal' && bosses.length > 0) out.push(`Das Gipfelkreuz Z bei ${z.cx},${z.cy} darf mit dem Murmelkönig X nicht vorkommen: das Kreuz erscheint nach dem Sieg.`);
   }
   for (const b of bosses) {
     if (b.cx < a.x0 || b.cx + 1 > a.x1) out.push(`Der Murmelkönig X bei ${b.cx},${b.cy} liegt nicht in der Arena.`);
     const free = [[b.cx, b.cy], [b.cx + 1, b.cy], [b.cx, b.cy - 1], [b.cx + 1, b.cy - 1]].every(([x, y]) => !g.isSolid(x!, y!));
     if (!free) out.push(`Der Murmelkönig X bei ${b.cx},${b.cy} braucht 2×2 freie Zellen.`);
+    // Über dem Boden brauchen Sprung und Gipfelkreuz (5 Kacheln hoch) Platz, quer über die ganze Arena.
+    for (let cy = b.cy - (ARENA_HEADROOM - 1); cy <= b.cy; cy++) {
+      const blocked = cy < 0 || Array.from({ length: a.x1 - a.x0 + 1 }, (_, i) => a.x0 + i).some((cx) => g.isSolid(cx, cy));
+      if (blocked) {
+        out.push(`Über dem Arenaboden fehlen ${ARENA_HEADROOM} freie Kacheln Platz (Reihe ${cy} ist blockiert).`);
+        break;
+      }
+    }
     if (!g.isSolid(b.cx, b.cy + 1) || !g.isSolid(b.cx + 1, b.cy + 1)) out.push(`Der Murmelkönig X bei ${b.cx},${b.cy} braucht festen Boden unter beiden Zellen.`);
   }
   return out;

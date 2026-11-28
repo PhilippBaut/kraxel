@@ -29,6 +29,8 @@ export const BOSS_TREMBLE_TIME = 0.5;
 export const BOSS_POP_TILES = 3;
 export const BOSS_STUN_TIME = 1.2;
 export const BOSS_THROW_GAP = 0.4;
+/** Schonfrist am Anfang des Steinwurfs: Berührung tut noch nicht weh, der erste Stein ist noch nicht los (Kraxel kann sich lösen). */
+export const BOSS_THROW_GRACE = 0.2;
 export const BOSS_INVULN = 0.8;
 const GRAVITY = 900;
 const STONE_SIZE = 8;
@@ -171,16 +173,14 @@ function stepPhase(s: GameState, b: BossState, a: { x0: number; x1: number }, dt
         b.phase = 'throw';
         b.t = 0;
         b.throwsLeft = b.hits >= 1 ? 2 : 1;
-        throwStone(s, b);
-        events.push({ type: 'bossThrow' });
       }
       break;
     case 'throw': {
       const total = b.hits >= 1 ? 2 : 1;
-      if (b.throwsLeft > 0 && b.t >= BOSS_THROW_GAP * (total - b.throwsLeft) - EPS) {
+      if (b.throwsLeft > 0 && b.t >= BOSS_THROW_GRACE + BOSS_THROW_GAP * (total - b.throwsLeft) - EPS) {
         throwStone(s, b);
         events.push({ type: 'bossThrow' });
-      } else if (b.throwsLeft === 0 && b.t >= BOSS_THROW_GAP * total - EPS) {
+      } else if (b.throwsLeft === 0 && b.t >= BOSS_THROW_GRACE + BOSS_THROW_GAP * total - EPS) {
         b.phase = 'wait';
         b.t = 0;
       }
@@ -191,12 +191,12 @@ function stepPhase(s: GameState, b: BossState, a: { x0: number; x1: number }, dt
   }
 }
 
-/** Berührung: In Benommen zählt Draufspringen oder Stampfen als Treffer (Stampfregel wie beim Käfer, der Enzian zählt nicht). Sonst kostet sie Kraxel einen Treffer. */
+/** Berührung: In Benommen zählt Draufspringen oder Stampfen als Treffer (Stampfregel wie beim Käfer; auch mit Enzian, der nur den Schaden abfängt). Sonst kostet sie Kraxel einen Treffer. */
 function touch(s: GameState, b: BossState, t: Tuning, jumpHeld: boolean): GameEvent[] {
   const p = s.player, pb = p.body;
   if (!bossHittable(b) || p.mode === 'dead' || !overlaps(pb, b.body)) return [];
-  if (b.phase !== 'stunned') return hurt(s, t);
-  if (p.enzian > 0) return [];
+  if (b.phase === 'throw' && b.t < BOSS_THROW_GRACE - EPS) return []; // Schonfrist am Wurfbeginn
+  if (b.phase !== 'stunned') return hurt(s, t); // der Enzian schützt hier über damagePlayer
   const pound = p.mode === 'pound';
   const stomp = pb.vy > 0 && s.playerPrevBottom <= b.body.y + STOMP_TOLERANCE;
   if (!pound && !stomp) return []; // Seitenberührung ist harmlos
