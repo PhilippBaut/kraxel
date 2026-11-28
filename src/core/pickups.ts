@@ -55,7 +55,8 @@ export function stepPickups(list: PickupState[], grid: TileGrid, dt: number, pla
       // Ohne Kollision nach oben, genau TILE px in EMERGE_TIME.
       const step = Math.min(dt, p.emerge);
       b.y -= (TILE * step) / EMERGE_TIME;
-      p.emerge = Math.max(0, p.emerge - dt);
+      p.emerge = p.emerge - dt > 1e-9 ? p.emerge - dt : 0;
+      if (p.emerge === 0) b.y = Math.round(b.y); // Start-y und 16 px Aufstieg sind ganze Pixel; Rundungsreste ließen das Item in der Kiste stecken
       continue;
     }
     b.vx = p.dir * ITEM_SPEED;

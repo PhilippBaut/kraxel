@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { hitCell } from './blocks.ts';
-import { collectPickups } from './pickups.ts';
-import { gameFrom, runGame } from './test-helpers.ts';
+import { STEP } from '../config.ts';
+import { collectPickups, spawnItem, stepPickups } from './pickups.ts';
+import { gameFrom, gridFrom, runGame } from './test-helpers.ts';
 
 const CRATE = ['..........', '....K.H...', '..........', '..........', '....P.....', '##########'];
 
@@ -55,5 +56,23 @@ describe('Kristalle, Edelweiß und Items', () => {
     const ev = runGame(s, [[{ right: true }, 30]]);
     expect(s.session.edelweiss).toEqual([false, true, false]);
     expect(ev.filter((e) => e.type === 'edelweiss')).toEqual([{ type: 'edelweiss', index: 1 }]);
+  });
+});
+
+describe('Item taucht aus der Kiste auf', () => {
+  it('läuft danach nach rechts weiter und springt in keiner Kistenreihe (1–39) zurück', () => {
+    for (let cy = 1; cy <= 39; cy++) {
+      const rows = Array.from({ length: cy + 3 }, (_, y) => (y === cy ? '.....U....' : y === cy + 2 ? '##########' : '..........'));
+      const g = gridFrom(rows);
+      const it = spawnItem('helm', 5, cy);
+      let steps = 0;
+      while (it.emerge > 0 && steps < 100) { stepPickups([it], g, STEP); steps++; }
+      expect(it.emerge, `Reihe ${cy}`).toBe(0);
+      const x0 = it.body.x;
+      for (let i = 0; i < 10; i++) stepPickups([it], g, STEP);
+      expect(it.dir, `Reihe ${cy}`).toBe(1);
+      expect(it.body.x - x0, `Reihe ${cy}`).toBeGreaterThan(0);
+      expect(it.body.x - x0, `Reihe ${cy}`).toBeLessThan(10 * 50 * STEP + 1e-6); // höchstens Lauftempo, kein Sprung
+    }
   });
 });
