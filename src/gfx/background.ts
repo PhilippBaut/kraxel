@@ -165,9 +165,68 @@ function drawVolcano(ctx: CanvasRenderingContext2D, w: WorldPalette): void {
   ctx.globalAlpha = 1;
 }
 
+/** Burginneres, ferne Ebene: Quadermauer mit hohen Bogenfenstern, durch die kaltes Licht fällt (vier Fenster je 512 px). */
+function drawCastleWall(ctx: CanvasRenderingContext2D, w: WorldPalette): void {
+  const brickH = 12, brickW = 32;
+  ctx.fillStyle = w.far; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = mix(w.far, DARK, 0.35); // Fugen, jede zweite Reihe versetzt
+  for (let row = 0, y = 0; y < H; row++, y += brickH) {
+    ctx.fillRect(0, y, W, 1);
+    for (let x = (row % 2) * (brickW / 2); x < W; x += brickW) ctx.fillRect(x, y, 1, brickH);
+  }
+  ctx.fillStyle = w.farHi; // Glanz an einzelnen Quadern
+  for (let row = 0, y = 0; y < H; row++, y += brickH) {
+    for (let x = (row % 2) * (brickW / 2); x < W; x += brickW) if (hash(row * 17 + x) > 0.6) ctx.fillRect(x + 2, y + 2, 10, 1);
+  }
+  for (let i = 0; i < 4; i++) {
+    const cx = i * 128 + 64, top = 30, bottom = GY, hw = 9;
+    ctx.fillStyle = DARK; ctx.fillRect(cx - hw - 2, top + hw, hw * 2 + 4, bottom - top - hw);
+    pixCircle(ctx, cx, top + hw, hw + 2);
+    ctx.fillStyle = '#5c6ea6'; ctx.fillRect(cx - hw, top + hw, hw * 2, bottom - top - hw);
+    pixCircle(ctx, cx, top + hw, hw);
+    ctx.fillStyle = '#8fa2d8'; ctx.fillRect(cx - hw, top + hw, 3, bottom - top - hw); // Lichtkante
+    ctx.fillStyle = DARK; ctx.fillRect(cx - 1, top, 2, bottom - top); ctx.fillRect(cx - hw, top + 40, hw * 2, 2); // Sprossen
+  }
+}
+
+/** Burginneres, vordere Ebene: Säulen mit Kapitell und Sockel, dazwischen Fackeln (vier Säulen je 512 px). */
+function drawCastlePillars(w: WorldPalette): HTMLCanvasElement {
+  const [c, ctx] = canvas2d(W, H);
+  for (let i = 0; i < 4; i++) {
+    const x = i * 128 + 6, pw = 20;
+    ctx.fillStyle = w.h2; ctx.fillRect(x, 0, pw, H);
+    ctx.fillStyle = w.hl; ctx.fillRect(x, 0, 3, H); ctx.fillRect(x + pw - 2, 0, 2, H);
+    ctx.fillStyle = w.h1; ctx.fillRect(x - 3, 20, pw + 6, 8); ctx.fillRect(x - 3, GY + 4, pw + 6, 10); // Kapitell und Sockel
+    ctx.fillStyle = DARK; ctx.fillRect(x - 3, 28, pw + 6, 1); ctx.fillRect(x - 3, GY + 3, pw + 6, 1);
+    const tx = x + 64 + 10; // Fackel zwischen den Säulen
+    ctx.fillStyle = '#3a2d33'; ctx.fillRect(tx, 70, 3, 10);
+    ctx.fillStyle = '#ff6a2a'; ctx.fillRect(tx - 1, 64, 5, 6);
+    ctx.fillStyle = '#ffd23f'; ctx.fillRect(tx, 66, 3, 4);
+    ctx.globalAlpha = 0.12; ctx.fillStyle = '#ff9a3c'; pixCircle(ctx, tx + 1.5, 67, 14); ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = w.h1; ctx.fillRect(0, H - 8, W, 8); // Boden schließt nach unten ab
+  return c;
+}
+
+/** Burginneres, mittlere Ebene: hängende Banner (statt Wolken; steht in der Burg still). */
+function drawBanners(w: WorldPalette): HTMLCanvasElement {
+  const [c, ctx] = canvas2d(W, H);
+  for (let i = 0; i < 4; i++) {
+    const x = i * 128 + 98, bw = 14;
+    ctx.fillStyle = '#e8c15a'; ctx.fillRect(x - 2, 4, bw + 4, 3); // Stange
+    ctx.fillStyle = w.cl; ctx.fillRect(x, 7, bw, 38);
+    ctx.fillStyle = mix(w.cl, DARK, 0.3); ctx.fillRect(x + bw - 3, 7, 3, 38);
+    ctx.fillStyle = w.cs; ctx.fillRect(x + 4, 16, 6, 6); ctx.fillRect(x + 6, 14, 2, 10); ctx.fillRect(x + 2, 18, 10, 2); // Zierkreuz
+    ctx.fillStyle = w.cl; // Schwalbenschwanz am unteren Ende
+    ctx.clearRect(x + bw / 2 - 2, 38, 4, 8); ctx.fillRect(x + 2, 45, 3, 3); ctx.fillRect(x + bw - 5, 45, 3, 3);
+  }
+  return c;
+}
+
 function drawFar(w: WorldPalette): HTMLCanvasElement {
   const [c, ctx] = canvas2d(W, H);
   switch (w.shape) {
+    case 'castle': drawCastleWall(ctx, w); break;
     case 'mountains': drawPeaks(ctx, w, false); break;
     case 'icepeaks': drawPeaks(ctx, w, true); break;
     case 'mesas': drawMesas(ctx, w); break;
@@ -179,6 +238,7 @@ function drawFar(w: WorldPalette): HTMLCanvasElement {
 }
 
 function drawClouds(w: WorldPalette): HTMLCanvasElement {
+  if (w.shape === 'castle') return drawBanners(w);
   const [c, ctx] = canvas2d(W, H);
   const cloud = toCanvas(bakeGrid(buildSprites().cloud, { ...BASE, Z: w.cl, v: w.cs }));
   if (w.shape === 'volcano') ctx.globalAlpha = 0.7;
@@ -188,6 +248,7 @@ function drawClouds(w: WorldPalette): HTMLCanvasElement {
 }
 
 function drawHills(w: WorldPalette): HTMLCanvasElement {
+  if (w.shape === 'castle') return drawCastlePillars(w);
   const [c, ctx] = canvas2d(W, H);
   const t1 = columns((x) => humps(x, GY + 10, 7, 30, 46, 1));
   fillCols(ctx, H, t1, w.h1, mix(w.hl, w.h1, 0.45));

@@ -2,6 +2,7 @@
 // Liest den GameState nur, verändert ihn nie.
 import Phaser from 'phaser';
 import { TILE } from '../config.ts';
+import { BOSS_INVULN, summitSpawn } from '../core/boss.ts';
 import type { EnemyState } from '../core/enemies.ts';
 import type { GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
@@ -17,7 +18,7 @@ export { playerFrame } from './player-frame.ts';
 
 type Image = Phaser.GameObjects.Image;
 
-const DEPTH = { marker: 1, water: 1.5, pickup: 2, enemy: 4, block: 3, platform: 3, player: 5, fx: 6 } as const;
+const DEPTH = { marker: 1, water: 1.5, pickup: 2, enemy: 4, block: 3, platform: 3, door: 3.5, player: 5, stars: 5.5, fx: 6 } as const;
 /** Wasseroberfläche: so oft pro Sekunde wechselt das Wellenbild. */
 const WATER_FPS = 2.5;
 const BUMP_TIME = 0.15, BUMP_PX = 4;
@@ -36,6 +37,16 @@ const RUMBLE_PX = 1;
 /** Käfer: alle 0,15 s wird gespiegelt, das gibt zwei Laufbilder. */
 const BEETLE_STEP_TIME = 0.15;
 const SHAKE_MS = 120, SHAKE_PX = 2;
+/** Murmelkönig: weißer Blitz nach einem Treffer (s), danach blinkt er bis zum Ende der Schonzeit; Eingraben wechselt nach DIG_SWITCH das Bild. */
+const BOSS_FLASH = 0.12, DIG_SWITCH = 0.2;
+/** Besiegt: so lange liegt er da (s), ab BOSS_BLINK blinkt er, dann ist er weg. */
+const BOSS_LIE = 1.6, BOSS_BLINK = 0.8;
+/** Die Arenatür fällt in DOOR_DROP s von oben herab. */
+const DOOR_DROP = 0.25;
+/** Erdstaub am Hügel: alle MOUND_DUST s (beim Beben alle TREMBLE_DUST s) ein Korn. */
+const MOUND_DUST = 0.06, TREMBLE_DUST = 0.03;
+/** Steine drehen sich (Spiegelungen) so oft pro Sekunde; Sternchen wechseln und wippen. */
+const STONE_SPIN = 16, STAR_FLIP = 6, STAR_BOB = 8;
 /** Enzian: Kraxel flackert golden (Takt in s), glitzert alle SPARK_EVERY s und blinkt in den letzten WARN s heller/normal. */
 const ENZIAN_FLICKER = 0.07, ENZIAN_WARN = 2, SPARK_EVERY = 0.06;
 const GOLD_A = 0xffe58a, GOLD_B = 0xfffbd8, GOLD_SPARK = 0xffe680;
@@ -98,6 +109,16 @@ export class WorldView {
   private pops: Pop[] = [];
   private sparkles: Sparkle[] = [];
   private debris: Debris[] = [];
+  /** Murmelkönig mit Hügel, Sternen, Wurfsteinen, Arenatür (ein Bild je Zeile) und Gipfelkreuz nach dem Sieg. */
+  private bossImg: Image | null = null;
+  private moundImg: Image | null = null;
+  private starsImg: Image | null = null;
+  private summitImg: Image | null = null;
+  private summitShown = false;
+  private stoneImgs: Image[] = [];
+  private doorImgs: Image[] = [];
+  private doorAt = -Infinity;
+  private moundDustAt = -Infinity;
   private grid: TileGrid;
   private lastTime = -1;
 
@@ -141,6 +162,7 @@ export class WorldView {
     for (const img of this.crosses) img.destroy();
     this.crosses = [];
     this.cairns = [];
+    this.rebuildBoss(s);
     for (const sp of s.level.spawns) {
       if (sp.kind === 'checkpoint') {
         this.cairns[sp.index] = this.scene.add.image(sp.cx * TILE, sp.cy * TILE, 'cairn').setOrigin(0).setDepth(DEPTH.marker);
@@ -155,6 +177,37 @@ export class WorldView {
         if (blockTexture(g.get(cx, cy))) this.addBlock(cx, cy);
         else if (g.get(cx, cy) === Cell.Water) this.addWater(cx, cy);
       }
+    }
+  }
+
+  /** Bilder für Murmelkönig, Hügel, Sterne, Tür und Kreuz neu anlegen (nur in Leveln mit Arena). */
+  private rebuildBoss(s: GameState): void {
+    for (const img of [this.bossImg, this.moundImg, this.starsImg, this.summitImg, ...this.stoneImgs, ...this.doorImgs]) img?.destroy();
+    this.bossImg = this.moundImg = this.starsImg = this.summitImg = null;
+    this.stoneImgs = [];
+    this.doorImgs = [];
+    this.summitShown = false;
+    this.doorAt = -Infinity;
+    if (!s.arena) return;
+    const floorRow = s.boss ? s.boss.floorY / TILE : s.grid.height - 1;
+    for (let cy = 0; cy < floorRow; cy++) {
+      this.doorImgs.push(this.scene.add.image((s.arena.x0 - 1) * TILE, cy * TILE, 'arenaDoor').setOrigin(0).setDepth(DEPTH.door).setVisible(false));
+    }
+    if (!s.boss) return;
+    this.bossImg = this.scene.add.image(0, 0, 'bossStand').setOrigin(0.5, 1).setDepth(DEPTH.enemy);
+    this.moundImg = this.scene.add.image(0, 0, 'bossMound').setOrigin(0.5, 1).setDepth(DEPTH.enemy).setVisible(false);
+    this.starsImg = this.scene.add.image(0, 0, 'bossStars').setOrigin(0.5, 1).setDepth(DEPTH.stars).setVisible(false);
+    this.summitImg = this.scene.add.image(0, 0, 'cross').setOrigin(0, 1).setDepth(DEPTH.marker).setVisible(false);
+  }
+
+  /** Eine Handvoll Erdstaub aus einer Quelle (Eingraben, Herausspringen, Aufprall). */
+  private burstDust(x: number, y: number, n: number, time: number): void {
+    for (let i = 0; i < n; i++) {
+      const k = this.dustCount++;
+      this.dust.push({
+        x: Math.round(x) + ((k * 5) % 21) - 10, y: Math.round(y) - ((k * 3) % 4), vx: (((k * 7) % 9) - 4) * 14, vy: -30 - ((k * 5) % 6) * 12,
+        start: time, color: DUST_COLORS[k % 2]!,
+      });
     }
   }
 
@@ -177,6 +230,27 @@ export class WorldView {
         case 'rockWarn': {
           const cam = this.scene.cameras.main;
           cam.shake(ROCK_WARN_TIME * 1000, new Phaser.Math.Vector2(RUMBLE_PX / cam.width, 0));
+          break;
+        }
+        case 'arenaClose': {
+          this.doorAt = now;
+          const cam = this.scene.cameras.main;
+          cam.shake(SHAKE_MS * 2, new Phaser.Math.Vector2(0, SHAKE_PX / cam.height));
+          break;
+        }
+        case 'bossDig': this.burstDust(this.bossImg?.x ?? 0, this.bossImg?.y ?? 0, 10, now); break;
+        case 'bossPop': {
+          const cam = this.scene.cameras.main;
+          cam.shake(SHAKE_MS, new Phaser.Math.Vector2(0, SHAKE_PX / cam.height));
+          this.burstDust(this.moundImg?.x ?? 0, this.moundImg?.y ?? 0, 12, now);
+          break;
+        }
+        case 'bossHit': case 'bossDefeated': {
+          const b = this.bossImg;
+          if (!b) break;
+          for (const [dx, dy] of [[-10, -22], [10, -22], [0, -30], [-14, -10], [14, -10]] as const) {
+            this.sparkles.push({ x: Math.round(b.x) + dx, y: Math.round(b.y) + dy, start: now, max: e.type === 'bossDefeated' ? 5 : 3 });
+          }
           break;
         }
         case 'pebblePop': this.sparkles.push({ x: Math.round(e.x), y: Math.round(e.y), start: now, max: POP_SPARK }); break;
@@ -203,6 +277,7 @@ export class WorldView {
     this.syncEnemies(s.enemies, time);
     this.syncPebbles(s.pebbles);
     this.syncRocks(s, time, dt);
+    this.syncBoss(s, time);
     this.syncPops(time);
     this.syncDebris(time, dt);
     this.drawSparkles(time);
@@ -263,6 +338,74 @@ export class WorldView {
         start: time, color: DUST_COLORS[n % 2]!,
       });
     });
+  }
+
+  /** Murmelkönig je Phase, Erdhügel mit Beben, Sternchen, Wurfsteine, Arenatür und Gipfelkreuz. */
+  private syncBoss(s: GameState, time: number): void {
+    const a = s.arena;
+    const closed = !!a?.closed;
+    const t = time - this.doorAt;
+    const drop = closed ? Math.round(this.doorImgs.length * TILE * (1 - Math.min(1, Math.max(0, t / DOOR_DROP)) ** 2)) : 0;
+    for (let cy = 0; cy < this.doorImgs.length; cy++) this.doorImgs[cy]!.setVisible(closed).setY(cy * TILE - drop);
+
+    const b = s.boss, img = this.bossImg, mound = this.moundImg, stars = this.starsImg;
+    if (!b || !img || !mound || !stars) return;
+    const body = b.body, cx = Math.round(body.x + body.w / 2), feetY = Math.round(body.y + body.h);
+
+    // Besiegt, dann Gipfelkreuz
+    const summit = summitSpawn(s);
+    if (this.summitImg) {
+      this.summitImg.setVisible(summit !== null);
+      if (summit) {
+        this.summitImg.setPosition(summit.cx * TILE, (summit.cy + 1) * TILE);
+        if (!this.summitShown) {
+          this.summitShown = true;
+          this.sparkles.push({ x: summit.cx * TILE + 8, y: (summit.cy + 1) * TILE - 70, start: time, max: 6, color: GOLD_SPARK });
+        }
+      }
+    }
+
+    // Hügel: wandert, wechselt die Spiegelung, bebt vor dem Herausspringen
+    const underground = b.phase === 'mound' || b.phase === 'tremble';
+    mound.setVisible(underground);
+    if (underground) {
+      const shake = b.phase === 'tremble' ? [-1, 1][Math.floor(time * 40) % 2]! : 0;
+      mound.setPosition(Math.round(b.moundX) + shake, b.floorY).setFlipX(Math.floor(time * 10) % 2 === 1);
+      const every = b.phase === 'tremble' ? TREMBLE_DUST : MOUND_DUST;
+      if (time - this.moundDustAt >= every) {
+        this.moundDustAt = time;
+        this.burstDust(b.moundX, b.floorY, 1, time);
+      }
+    }
+
+    // Murmelkönig selbst
+    let frame = 'bossStand';
+    if (b.phase === 'dig') frame = b.t < DIG_SWITCH ? 'bossDig1' : 'bossDig2';
+    else if (b.phase === 'pop') frame = 'bossPop';
+    else if (b.phase === 'stunned') frame = 'bossStun';
+    else if (b.phase === 'throw') frame = 'bossThrow';
+    else if (b.phase === 'defeated') frame = 'bossDown';
+    let shown = !underground;
+    const flash = b.phase !== 'defeated' && b.invuln > BOSS_INVULN - BOSS_FLASH;
+    if (b.phase === 'defeated') shown = b.t < BOSS_LIE && (b.t < BOSS_BLINK || Math.floor(b.t * 14) % 2 === 0);
+    else if (b.invuln > 0 && !flash) shown = shown && Math.floor(b.invuln * 15) % 2 === 0;
+    img.setVisible(shown).setTexture(frame).setPosition(cx, feetY)
+      .setFlipX(b.phase === 'throw' && s.player.body.x + s.player.body.w / 2 < cx);
+    if (flash) img.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+    else img.clearTint();
+
+    // Sternchen über dem Kopf, solange er benommen ist
+    const dazed = b.phase === 'stunned';
+    stars.setVisible(dazed);
+    if (dazed) stars.setPosition(cx, feetY - body.h + 5 + Math.round(Math.sin(time * STAR_BOB))).setFlipX(Math.floor(time * STAR_FLIP) % 2 === 1);
+
+    // Wurfsteine
+    for (let i = 0; i < b.rocks.length; i++) {
+      const st = (this.stoneImgs[i] ??= this.scene.add.image(0, 0, 'bossStone').setOrigin(0).setDepth(DEPTH.enemy));
+      const f = Math.floor(time * STONE_SPIN) % 4;
+      st.setVisible(true).setPosition(Math.round(b.rocks[i]!.x), Math.round(b.rocks[i]!.y)).setFlipX((f & 1) === 1).setFlipY((f & 2) === 2);
+    }
+    for (let i = b.rocks.length; i < this.stoneImgs.length; i++) this.stoneImgs[i]!.setVisible(false);
   }
 
   /** Staubkörner als 1×1-Punkte (die hellen 2×2), die nach unten rieseln und verblassen. */

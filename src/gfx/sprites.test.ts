@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BASE } from './palette.ts';
-import { buildSprites, KRAXEL_FRAMES, helmName, platformSprite } from './sprites.ts';
+import { buildSprites, KRAXEL_FRAMES, BOSS_FRAMES, helmName, platformSprite } from './sprites.ts';
 
 const S = buildSprites();
 const text = (name: string) => S[name].map((r) => r.join(''));
@@ -22,7 +22,7 @@ describe('sprites', () => {
   });
 
   it('Umrandung wird nirgends am Rand abgeschnitten (kein Farbpixel am Rasterrand)', () => {
-    const TILES = new Set(['groundTop', 'groundFill', 'waterTop1', 'waterTop2', 'water']); // Kacheln füllen die Zelle bis zum Rand
+    const TILES = new Set(['groundTop', 'groundFill', 'burgTop', 'burgFill', 'arenaDoor', 'waterTop1', 'waterTop2', 'water']); // Kacheln füllen die Zelle bis zum Rand
     const bad: string[] = [];
     for (const [name, g] of Object.entries(S)) {
       if (TILES.has(name)) continue;
@@ -133,5 +133,33 @@ describe('Plattformen und Wasser', () => {
     expect(text('waterTop1').join()).not.toBe(text('waterTop2').join());
     expect(text('waterTop1')[0]).toContain('Z'); // Schaumkamm in der obersten Reihe
     expect(text('water').join('')).not.toContain('.'); // Tiefe ist undurchsichtig
+  });
+});
+
+describe('Murmelkönig und Arena', () => {
+  const dim = (n: string) => [S[n].length, S[n][0].length];
+  it('alle Bossbilder sind 32×32, verschieden und tragen die Kronenfarbe oder liegen am Boden', () => {
+    expect([...BOSS_FRAMES].sort()).toEqual(['bossDig1', 'bossDig2', 'bossDown', 'bossPop', 'bossStand', 'bossStun', 'bossThrow']);
+    for (const f of BOSS_FRAMES) expect(dim(f), f).toEqual([32, 32]);
+    expect(new Set(BOSS_FRAMES.map((f) => text(f).join('\n'))).size).toBe(BOSS_FRAMES.length);
+    expect(text('bossStand').join('')).toMatch(/Y/); // Krone
+  });
+  it('die Bossbilder stehen mit der Unterkante am Boden (unterste Farbzeile ist Reihe 30)', () => {
+    for (const f of BOSS_FRAMES) {
+      const rows = text(f);
+      const last = rows.map((r) => /[^.o]/.test(r)).lastIndexOf(true);
+      expect(last, f).toBe(30);
+    }
+  });
+  it('Hügel, Stein, Sterne und Tür haben ihre Größen', () => {
+    expect(dim('bossMound')).toEqual([10, 24]);
+    expect(dim('bossStone')).toEqual([8, 8]);
+    expect(dim('bossStars')).toEqual([8, 24]);
+    expect(dim('arenaDoor')).toEqual([16, 16]);
+    expect(dim('burgTop')).toEqual([16, 16]);
+    expect(dim('burgFill')).toEqual([16, 16]);
+  });
+  it('die Tür ist undurchsichtig (eine feste Zelle)', () => {
+    expect(text('arenaDoor').join('')).not.toContain('.');
   });
 });

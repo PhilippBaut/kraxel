@@ -3,7 +3,7 @@ import type Phaser from 'phaser';
 import { buildSprites } from './sprites.ts';
 import { buildMapSprites } from './map-tiles.ts';
 import { bakeGrid, toCanvas, canvas2d } from './bake.ts';
-import { BASE, DARK, WORLDS } from './palette.ts';
+import { BASE, BURG, DARK, WORLDS } from './palette.ts';
 import { buildGroundTileset } from './tiles.ts';
 import { buildBackgroundLayers } from './background.ts';
 import { drawDpad, drawRoundButton, type DirHeld } from './buttons.ts';
@@ -18,6 +18,7 @@ export const BUTTON_RADII = {
 } as const;
 
 const GROUND_TILES = new Set(['groundTop', 'groundFill']);
+const BURG_TILES = new Set(['burgTop', 'burgFill']);
 const DIRS = ['left', 'right', 'up', 'down'] as const;
 
 export function dpadKey(r: number, held: DirHeld): string {
@@ -53,7 +54,7 @@ export function registerTextures(scene: Phaser.Scene, world: number): void {
   if (!w) throw new Error(`Unbekannte Welt ${world}`);
   const tilePal = { ...BASE, ...w.tiles };
   for (const [name, g] of Object.entries(buildSprites())) {
-    addCanvas(scene, name, toCanvas(bakeGrid(g, GROUND_TILES.has(name) ? tilePal : BASE)));
+    addCanvas(scene, name, toCanvas(bakeGrid(g, GROUND_TILES.has(name) ? tilePal : BURG_TILES.has(name) ? { ...BASE, ...BURG.tiles } : BASE)));
   }
   for (const [name, g] of Object.entries(buildMapSprites())) addCanvas(scene, name, toCanvas(bakeGrid(g, BASE)));
   addCanvas(scene, `tiles-w${world}`, toCanvas(bakeGrid(buildGroundTileset(w), tilePal)));
@@ -62,6 +63,13 @@ export function registerTextures(scene: Phaser.Scene, world: number): void {
   addCanvas(scene, 'bg-far', bg.far);
   addCanvas(scene, 'bg-hills', bg.hills);
   addCanvas(scene, 'bg-clouds', bg.clouds);
+  // Burg-Stil (`stil: burg`): eigene Steinkacheln und Burg-Hintergrund unter anderen Schlüsseln.
+  addCanvas(scene, 'tiles-burg', toCanvas(bakeGrid(buildGroundTileset(BURG, 'burg'), { ...BASE, ...BURG.tiles })));
+  const burg = buildBackgroundLayers(BURG);
+  addCanvas(scene, 'bg-burg-sky', burg.sky);
+  addCanvas(scene, 'bg-burg-far', burg.far);
+  addCanvas(scene, 'bg-burg-hills', burg.hills);
+  addCanvas(scene, 'bg-burg-clouds', burg.clouds);
   addFont(scene, 'font-white', '#ffffff');
   addFont(scene, 'font-dark', DARK);
   for (const kind of BUTTON_IDS) for (const r of BUTTON_RADII[kind]) ensureButtonTextures(scene, kind, r);

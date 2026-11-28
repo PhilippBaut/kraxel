@@ -4,6 +4,7 @@
 import {
   type PixelGrid, grid, strs, ell, cap, rect, put, line, outline, each, stamp, recolor, flipX,
 } from './grid-ops.ts';
+import { BOSS_NAMES, buildBossSprites } from './boss-sprites.ts';
 
 const KRAXEL_NAMES = [
   'kraxel', 'kraxelB', 'kraxelJ', 'kraxelRun1', 'kraxelRun2', 'kraxelFall', 'kraxelSkid', 'kraxelWall',
@@ -17,9 +18,12 @@ export type SpriteName =
   | 'beetle' | 'beetleFlat' | 'snail' | 'stone' | 'cloud' | 'groundTop' | 'groundFill'
   | 'pebble' | 'leafPad'
   | 'log' | 'log3' | 'log4' | 'stoneSlab' | 'stoneSlab3' | 'stoneSlab4' | 'waterTop1' | 'waterTop2' | 'water'
-  | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'iSling' | 'cross' | 'crossGold' | 'cairn' | 'cairnFlag' | 'debris' | 'fallRock';
+  | 'iCrystal' | 'iEdel' | 'iEdelOff' | 'iHead' | 'iSling' | 'cross' | 'crossGold' | 'cairn' | 'cairnFlag' | 'debris' | 'fallRock'
+  | (typeof BOSS_NAMES)[number] | 'bossMound' | 'bossStone' | 'bossStars' | 'arenaDoor' | 'burgTop' | 'burgFill';
 
 export const KRAXEL_FRAMES: readonly SpriteName[] = KRAXEL_NAMES;
+/** Alle 32×32-Bilder des Murmelkönigs. */
+export const BOSS_FRAMES: readonly SpriteName[] = BOSS_NAMES;
 
 /** Bild einer beweglichen Plattform: `log`/`stoneSlab` 2 Kacheln breit, sonst mit Ziffer (`log3`, `stoneSlab4`). */
 export function platformSprite(art: 'stamm' | 'stein', width: number): SpriteName {
@@ -680,6 +684,7 @@ export function buildSprites(): Record<string, PixelGrid> {
     groundTop: groundTop(), groundFill: groundFill(),
     iCrystal: strs(I_CRYSTAL), iEdel, iEdelOff: recolor(iEdel, { V: 'w', Y: 'w' }), iHead: strs(I_HEAD), iSling: strs(I_SLING),
     cross: crossGrid, crossGold: recolor(crossGrid, { J: 'Q', j: 'q' }), cairn: base, cairnFlag: cairnFlag(base), debris: strs(DEBRIS), fallRock: strs(FALL_ROCK),
+    ...(buildBossSprites() as Record<'bossMound' | 'bossStone' | 'bossStars' | 'arenaDoor' | 'burgTop' | 'burgFill' | (typeof BOSS_NAMES)[number], PixelGrid>),
   };
   return { ...sprites, ...helmets };
 }

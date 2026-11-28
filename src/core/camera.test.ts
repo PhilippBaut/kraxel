@@ -113,3 +113,65 @@ describe('Kamera', () => {
     expect(c.y).toBe(384 - 192);
   });
 });
+
+describe('Arena-Sperre', () => {
+  // Arena: Kacheln 20..35 (16 breit), Boden bei Zeile 20 (Unterkante 320 px).
+  const lock = { x0: 20 * 16, x1: 36 * 16, floorY: 20 * 16 };
+  const centre = (w: number) => (lock.x0 + lock.x1) / 2 - w / 2;
+  const feetY = (h: number) => lock.floorY - 0.7 * h;
+
+  for (const w of [256, 416]) {
+    it(`steht bei Breite ${w} fest mittig auf der Arena, egal wo Kraxel läuft und springt`, () => {
+      const v = { w, h: 192 };
+      const p = createPlayer(24, 19);
+      p.grounded = true;
+      const c = createCamera(p, v, level);
+      for (let i = 0; i < 180; i++) stepCamera(c, p, v, level, 1 / 60, lock);
+      expect(c.x).toBeCloseTo(centre(w), 1);
+      expect(c.y).toBeCloseTo(feetY(v.h), 1);
+      const x0 = c.x, y0 = c.y;
+      for (let i = 0; i < 120; i++) {
+        p.body.x = (21 + (i % 14)) * 16;
+        p.body.vx = i % 2 ? 96 : -96;
+        p.facing = i % 2 ? 1 : -1;
+        p.grounded = i % 3 === 0;
+        p.body.y = 19 * 16 - (i % 5) * 12;
+        stepCamera(c, p, v, level, 1 / 60, lock);
+        expect(c.x).toBeCloseTo(x0, 6);
+        expect(c.y).toBeCloseTo(y0, 6);
+      }
+    });
+
+    it(`folgt bei Breite ${w} wieder frei, wenn die Arena offen ist`, () => {
+      const v = { w, h: 192 };
+      const p = createPlayer(24, 19);
+      p.grounded = true;
+      const c = createCamera(p, v, level);
+      for (let i = 0; i < 60; i++) stepCamera(c, p, v, level, 1 / 60, lock);
+      p.body.x = 40 * 16;
+      for (let i = 0; i < 5; i++) stepCamera(c, p, v, level, 1 / 60, null);
+      expect(c.x).toBeCloseTo(p.body.x + PLAYER_W / 2 - w / 2 + c.look, 6);
+      expect(c.x).not.toBeCloseTo(centre(w), 0);
+    });
+  }
+
+  it('gleitet nach dem Schließen sanft zur Mitte statt zu springen', () => {
+    const p = createPlayer(22, 19);
+    p.grounded = true;
+    const c = createCamera(p, view, level);
+    stepCamera(c, p, view, level, 1 / 60, null);
+    const before = c.x;
+    stepCamera(c, p, view, level, 1 / 60, lock);
+    expect(Math.abs(c.x - before)).toBeLessThan(Math.abs(centre(256) - before));
+  });
+
+  it('die Sperre bleibt im Level (kein Blick über den Rand)', () => {
+    const edge = { x0: 84 * 16, x1: 100 * 16, floorY: 20 * 16 };
+    const v = { w: 416, h: 192 };
+    const p = createPlayer(90, 19);
+    p.grounded = true;
+    const c = createCamera(p, v, level);
+    for (let i = 0; i < 180; i++) stepCamera(c, p, v, level, 1 / 60, edge);
+    expect(c.x).toBe(1600 - 416);
+  });
+});

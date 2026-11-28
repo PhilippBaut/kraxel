@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { TileGrid } from '../core/grid.ts';
 import { parseLevel } from '../core/level.ts';
 import { GROUND_TILES, groundTileIndex, buildGroundTileset } from './tiles.ts';
-import { WORLDS } from './palette.ts';
+import { BURG, WORLDS } from './palette.ts';
 
 describe('Boden-Autotiling', () => {
   const g = TileGrid.fromLevel(parseLevel('t', 'name: t\nworld: 1\n---\nP.....\n..###.\n..###.'));
@@ -24,5 +24,17 @@ describe('Boden-Autotiling', () => {
     expect(col(1 * 16).every((c) => c === 'o')).toBe(true);        // topL, links
     expect(col(2 * 16 + 15).every((c) => c === 'o')).toBe(true);   // topR, rechts
     expect(col(4 * 16).every((c) => c === 'o')).toBe(false);       // fill, links offen
+  });
+});
+
+describe('Burg-Stil', () => {
+  it('Burg-Tileset hat dasselbe Format, andere Kacheln und dunkle Seitenränder', () => {
+    const t = buildGroundTileset(BURG, 'burg');
+    expect([t.length, t[0].length]).toEqual([16, 128]);
+    expect(t.map((r) => r.join('')).join()).not.toBe(buildGroundTileset(WORLDS[0]).map((r) => r.join('')).join());
+    expect(t.map((r) => r[16]).every((c) => c === 'o')).toBe(true); // topL, links
+  });
+  it('die Burg-Palette deckt alle Kachelbuchstaben ab', () => {
+    expect(Object.keys(BURG.tiles).sort()).toEqual(['D', 'G', 'd', 'g', 'l', 'p']);
   });
 });

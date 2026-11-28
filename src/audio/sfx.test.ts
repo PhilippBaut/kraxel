@@ -118,3 +118,20 @@ describe('soundsForEvents', () => {
     expect(dur('sparkle')).toBeLessThan(0.6);
   });
 });
+
+describe('Boss-Klänge', () => {
+  it('die Boss-Events haben je einen eigenen Klang', () => {
+    const map = { arenaClose: 'doorSlam', bossDig: 'bossDig', bossPop: 'bossPop', bossHit: 'bossHit', bossDefeated: 'bossDefeated', bossThrow: 'bossThrow' } as const;
+    for (const [ev, snd] of Object.entries(map)) expect(EVENT_SOUND[ev as GameEvent['type']], ev).toBe(snd);
+    expect(new Set(Object.values(map)).size).toBe(6);
+    for (const n of Object.values(map)) expect(SOUND_DEFS[n]).toBeDefined();
+  });
+  it('soundsForEvents bildet die Boss-Events ab', () => {
+    expect(soundsForEvents([{ type: 'bossDig' }, { type: 'bossThrow' }])).toEqual(['bossDig', 'bossThrow']);
+    expect(soundsForEvents([{ type: 'arenaClose' }])).toEqual(['doorSlam']);
+  });
+  it('beim Sieg klingt nur das Sieg-Motiv, nicht zusätzlich der Treffer', () => {
+    expect(soundsForEvents([{ type: 'bossHit', hits: 3 }, { type: 'bossDefeated' }])).toEqual(['bossDefeated']);
+    expect(soundsForEvents([{ type: 'bossHit', hits: 1 }])).toEqual(['bossHit']);
+  });
+});

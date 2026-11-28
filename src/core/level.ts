@@ -13,6 +13,8 @@ export interface LevelData {
   platforms: PlatformSpec[];
   /** Bosskampf-Arena aus der Kopfzeile `arena: x0 x1` (Kachelspalten, beide eingeschlossen, genau 16 breit), sonst null. */
   arena: { x0: number; x1: number } | null;
+  /** Optik aus der Kopfzeile `stil: burg` (dunkle Steinkacheln, Burg-Hintergrund); ohne Zeile nicht gesetzt. */
+  style?: 'burg';
   /** Wie viele `P` im Text standen; `validateLevel` verlangt genau eines. */
   startCount: number;
 }
@@ -75,6 +77,7 @@ export function parseLevel(id: string, text: string): LevelData {
   let name = id, world = 1;
   const platforms: PlatformSpec[] = [];
   let arena: { x0: number; x1: number } | null = null;
+  let style: 'burg' | undefined;
   for (let i = 0; i < sep; i++) {
     const m = /^(\w+):\s*(.*)$/.exec(lines[i]);
     if (!m) {
@@ -90,6 +93,9 @@ export function parseLevel(id: string, text: string): LevelData {
       const f = m[2].trim().split(/\s+/).map(Number);
       if (f.length !== 2 || !f.every((n) => Number.isInteger(n))) throw new LevelError('arena braucht: x0 x1 (ganze Zahlen)', i + 1);
       arena = { x0: f[0]!, x1: f[1]! };
+    } else if (m[1] === 'stil') {
+      if (m[2].trim() !== 'burg') throw new LevelError(`Unbekannter Stil "${m[2].trim()}" (erlaubt: burg)`, i + 1);
+      style = 'burg';
     } else throw new LevelError(`Unbekannte Kopfzeile "${m[1]}"`, i + 1);
   }
   const rows = lines.slice(sep + 1);
@@ -123,7 +129,7 @@ export function parseLevel(id: string, text: string): LevelData {
 
   // Steinmännchen zählen von links nach rechts.
   spawns.filter((s) => s.kind === 'checkpoint').sort((a, b) => a.cx - b.cx).forEach((s, i) => { s.index = i; });
-  return { id, name, world, width, height, cells, crates, spawns, start, platforms, arena, startCount };
+  return { id, name, world, width, height, cells, crates, spawns, start, platforms, arena, startCount, ...(style ? { style } : {}) };
 }
 
 export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requireGoal: boolean }): string[] {

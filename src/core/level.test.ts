@@ -90,3 +90,13 @@ describe('validateLevel', () => {
     expect([...lv.cells].filter((c) => c === Cell.Water).length).toBeGreaterThanOrEqual(18);
   });
 });
+
+describe('Kopfzeile stil', () => {
+  it('stil: burg setzt den Burg-Stil, ohne Zeile ist er nicht gesetzt', () => {
+    expect(parseLevel('t', 'name: t\nstil: burg\n---\nP.\n##').style).toBe('burg');
+    expect(parseLevel('t', 'name: t\n---\nP.\n##').style).toBeUndefined();
+  });
+  it('unbekannter Stil ist ein Fehler mit Zeilennummer', () => {
+    expect(() => parseLevel('t', 'name: t\nstil: eis\n---\nP.\n##')).toThrow(/Zeile 2.*Stil/);
+  });
+});

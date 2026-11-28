@@ -3,7 +3,7 @@
 import Phaser from 'phaser';
 import { MAX_VIEW_W, STEP, TILE, VIEW_H } from '../config.ts';
 import { soundsForEvents, type Sfx } from '../audio/sfx.ts';
-import { createCamera, stepCamera, type CameraState } from '../core/camera.ts';
+import { createCamera, stepCamera, type CameraLock, type CameraState } from '../core/camera.ts';
 import { createGame, restartLevel, stepGame, type GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
 import { parseLevel } from '../core/level.ts';
@@ -28,10 +28,10 @@ import type { ResultData } from './ResultScene.ts';
 
 /** Ebenen von hinten nach vorn mit ihrem Parallax-Faktor (wie im Entwurf); Wolken ziehen zusätzlich nach rechts (px/s). */
 const BACKGROUND = [
-  { key: 'bg-sky', factor: 0, drift: 0 },
-  { key: 'bg-far', factor: 0.18, drift: 0 },
-  { key: 'bg-clouds', factor: 0.32, drift: 3 },
-  { key: 'bg-hills', factor: 0.5, drift: 0 },
+  { name: 'sky', factor: 0, drift: 0 },
+  { name: 'far', factor: 0.18, drift: 0 },
+  { name: 'clouds', factor: 0.32, drift: 3 },
+  { name: 'hills', factor: 0.5, drift: 0 },
 ] as const;
 const PIT_SHADE = 0x120a1e;
 /** So lange steht GAME OVER da, dann geht es zurück zur Karte (Entwickler-Zugang: zum Titel) (s). */
@@ -240,7 +240,7 @@ export class PlayScene extends Phaser.Scene {
       for (const e of events) if (e.type === 'goal') this.goalExit = e.exit;
       if (events.some((e) => e.type === 'gameOver')) this.onGameOver();
       this.stepOutcome();
-      stepCamera(this.cam, this.state.player, this.viewSize, this.levelPx, STEP);
+      stepCamera(this.cam, this.state.player, this.viewSize, this.levelPx, STEP, this.cameraLock());
     }
     this.scrollTo(time / 1000);
     this.worldView.sync(this.state, time / 1000);
@@ -344,11 +344,19 @@ export class PlayScene extends Phaser.Scene {
     for (const b of this.background) b.sprite.tilePositionX = Math.round(x * b.factor - time * b.drift);
   }
 
+  /** Bei geschlossener Arena steht die Kamera fest mittig auf ihr; sonst frei (auch nach dem Respawn, dann ist die Tür wieder offen). */
+  private cameraLock(): CameraLock | null {
+    const a = this.state.arena;
+    if (!a?.closed) return null;
+    return { x0: a.x0 * TILE, x1: (a.x1 + 1) * TILE, floorY: this.state.boss?.floorY ?? this.levelPx.h };
+  }
+
   /** Bildfeste Ebenen, so breit wie das breiteste Spielbild; die Kamera schneidet sie zu. */
   private createBackground(): void {
-    this.background = BACKGROUND.map(({ key, factor, drift }, i) => ({
-      sprite: this.add.tileSprite(0, 0, MAX_VIEW_W, VIEW_H, key).setOrigin(0).setScrollFactor(0).setDepth(-10 + i),
-      factor, drift,
+    const burg = this.state.level.style === 'burg'; // im Burginneren ziehen keine Wolken, die Banner stehen still
+    this.background = BACKGROUND.map(({ name, factor, drift }, i) => ({
+      sprite: this.add.tileSprite(0, 0, MAX_VIEW_W, VIEW_H, burg ? `bg-burg-${name}` : `bg-${name}`).setOrigin(0).setScrollFactor(0).setDepth(-10 + i),
+      factor, drift: burg ? 0 : drift,
     }));
   }
 
@@ -361,8 +369,9 @@ export class PlayScene extends Phaser.Scene {
       data.push(row);
     }
     const map = this.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
-    const tileset = map.addTilesetImage('tiles-w1');
-    if (!tileset) throw new Error('Tileset tiles-w1 fehlt');
+    const key = this.state.level.style === 'burg' ? 'tiles-burg' : 'tiles-w1';
+    const tileset = map.addTilesetImage(key);
+    if (!tileset) throw new Error(`Tileset ${key} fehlt`);
     map.createLayer(0, tileset, 0, 0);
   }
 

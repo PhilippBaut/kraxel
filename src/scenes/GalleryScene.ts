@@ -93,7 +93,11 @@ export class GalleryScene extends Phaser.Scene {
     const img = this.image(PAD, top, 'tiles-w1', 2);
     const labelY = top + img.displayHeight + 3;
     GROUND_TILES.forEach((n, i) => new PixelText(this, PAD + i * 32, labelY + (i % 2) * 9, n.toUpperCase(), 'dark'));
-    return labelY + 9 + GLYPH_H;
+    // Burg-Stil (`stil: burg`): dieselben acht Kanten in dunklem Stein.
+    const burgY = labelY + 9 + GLYPH_H + 4;
+    const burg = this.image(PAD, burgY, 'tiles-burg', 2);
+    new PixelText(this, PAD + burg.displayWidth + 6, burgY + 12, 'BURG', 'dark');
+    return burgY + burg.displayHeight;
   }
 
   /** Alle Glyphen dunkel auf hell, alle Texte aus ui-text weiß auf dunkel. */

@@ -21,7 +21,7 @@ export interface WorldPalette {
   sky: [string, string];
   far: string;
   farHi: string;
-  shape: 'mountains' | 'icepeaks' | 'mesas' | 'swamp' | 'cloudbanks' | 'volcano';
+  shape: 'mountains' | 'icepeaks' | 'mesas' | 'swamp' | 'cloudbanks' | 'volcano' | 'castle';
   h1: string;
   h2: string;
   hl: string;
@@ -39,6 +39,13 @@ export const WORLDS: readonly WorldPalette[] = [
   { name: '5 · Wolkenwelt', sky: ['#80bdff', '#ffd6ea'], far: '#ffffff', farHi: '#ffe6f3', shape: 'cloudbanks', h1: '#ffffff', h2: '#eaf0ff', hl: '#b9c6ee', cl: '#ffffff', cs: '#e2e6fb', tiles: { G: '#ffffff', g: '#dfe7ff', l: '#ffffff', D: '#f0f4ff', d: '#c5d2f3', p: '#ffffff' }, pit: 'sky' },
   { name: '6 · Vulkan', sky: ['#2b1328', '#d9473a'], far: '#2a1622', farHi: '#ff7a2e', shape: 'volcano', h1: '#4a2a30', h2: '#2f1a20', hl: '#170c10', cl: '#6b4b55', cs: '#4a3038', tiles: { G: '#5a4a52', g: '#3b2f36', l: '#7d6c74', D: '#3a2d33', d: '#22191d', p: '#ff6a2a' }, pit: 'lava' },
 ];
+
+/** Burg-Stil (`stil: burg`): kein Weltstand, sondern eine eigene Palette für Steinkacheln und das Burginnere. */
+export const BURG: WorldPalette = {
+  name: 'Burg', sky: ['#120c1e', '#2a1e3a'], far: '#3a3048', farHi: '#4c4260', shape: 'castle',
+  h1: '#2a2236', h2: '#211a2c', hl: '#4b3f5e', cl: '#a8253e', cs: '#ffd23f',
+  tiles: { G: '#8a8098', g: '#5c5270', l: '#aaa0b8', D: '#4c4460', d: '#2a2438', p: '#645a78' },
+};
 
 export function hexToRgb(h: string): [number, number, number] {
   const n = parseInt(h.slice(1), 16);

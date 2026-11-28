@@ -3,7 +3,8 @@
 import type { GameEvent } from '../core/types.ts';
 
 export type SoundName = 'jump' | 'wallJump' | 'bump' | 'crate' | 'crystal' | 'item' | 'powerUp' | 'stomp' | 'pound' | 'rockBreak'
-  | 'hurt' | 'death' | 'checkpoint' | 'edelweiss' | 'extraLife' | 'goal' | 'select' | 'shoot' | 'sparkle' | 'bounce' | 'rumble';
+  | 'hurt' | 'death' | 'checkpoint' | 'edelweiss' | 'extraLife' | 'goal' | 'select' | 'shoot' | 'sparkle' | 'bounce' | 'rumble'
+  | 'bossDig' | 'bossPop' | 'bossHit' | 'bossDefeated' | 'bossThrow' | 'doorSlam';
 
 /** Eine Note: Frequenz f (Hz), optional gleitend nach f2, Dauer d (s). Bei Rauschen zählt nur d. */
 export interface SoundDef {
@@ -38,6 +39,14 @@ export const SOUND_DEFS: Readonly<Record<SoundName, SoundDef>> = {
   sparkle: { wave: 'sine', vol: 0.75, notes: [{ f: 1200, f2: 2400, d: 0.08 }, { f: 1900, f2: 950, d: 0.08 }, { f: 1500, f2: 3000, d: 0.14 }, { f: 2600, f2: 2000, d: 0.12 }] },
   // Steinschlag-Vorwarnung: tiefes, unruhiges Grollen, rund 0,6 s.
   rumble: { wave: 'sawtooth', vol: 0.55, notes: [{ f: 70, f2: 48, d: 0.15 }, { f: 62, f2: 44, d: 0.15 }, { f: 72, f2: 46, d: 0.15 }, { f: 58, f2: 38, d: 0.15 }] },
+  // Murmelkönig: Scharren beim Eingraben (drei kurze Rauschstöße), Sprung aus dem Boden (Schwung hoch, Plumps),
+  // Treffer (knurrendes Aua, absteigend), Niederlage (traurig fallende Töne), Steinwurf (kurzes Pfeifen), Tür (dumpfer Schlag).
+  bossDig: { wave: 'noise', vol: 0.5, notes: [{ f: 0, d: 0.07 }, { f: 0, d: 0.07 }, { f: 0, d: 0.07 }] },
+  bossPop: { wave: 'sawtooth', vol: 0.5, notes: [{ f: 80, f2: 340, d: 0.14 }, { f: 340, f2: 150, d: 0.1 }] },
+  bossHit: { wave: 'sawtooth', vol: 0.6, notes: [{ f: 280, f2: 100, d: 0.12 }, { f: 200, f2: 60, d: 0.22 }] },
+  bossDefeated: { wave: 'triangle', vol: 0.85, notes: [{ f: 392, d: 0.14 }, { f: 330, d: 0.14 }, { f: 262, d: 0.14 }, { f: 196, d: 0.16 }, { f: 130, f2: 50, d: 0.5 }] },
+  bossThrow: { wave: 'triangle', vol: 0.7, notes: [{ f: 300, f2: 700, d: 0.06 }, { f: 700, f2: 260, d: 0.08 }] },
+  doorSlam: { wave: 'sawtooth', vol: 0.8, notes: [{ f: 110, f2: 40, d: 0.1 }, { f: 60, f2: 30, d: 0.3 }] },
   // Blätterpolster: federndes Boing.
   bounce: { wave: 'triangle', vol: 0.9, notes: [{ f: 200, f2: 620, d: 0.08 }, { f: 620, f2: 360, d: 0.07 }, { f: 360, f2: 520, d: 0.08 }] },
 };
@@ -48,17 +57,21 @@ export const EVENT_SOUND: Readonly<Partial<Record<GameEvent['type'], SoundName>>
   hurt: 'hurt', death: 'death', checkpoint: 'checkpoint', edelweiss: 'edelweiss', extraLife: 'extraLife', goal: 'goal',
   // Der Kiesel-Treffer läuft über `enemyDefeated` (Stomp-Klang); das Zerplatzen an der Wand bleibt still.
   shoot: 'shoot', bounce: 'bounce', enzianStart: 'sparkle', rockWarn: 'rumble',
+  arenaClose: 'doorSlam', bossDig: 'bossDig', bossPop: 'bossPop', bossHit: 'bossHit', bossDefeated: 'bossDefeated', bossThrow: 'bossThrow',
 };
 
 /**
  * Klänge für die Events eines Schritts: jeder Klang höchstens einmal (kein Stapeln bei Doppel-Stomp),
- * bei einem Ziel entfällt extraLife (nur die Fanfare), beim Enzian entfällt powerUp (nur das Funkeln).
+ * bei einem Ziel entfällt extraLife (nur die Fanfare), beim Enzian entfällt powerUp (nur das Funkeln),
+ * beim Sieg über den Murmelkönig entfällt bossHit (nur das Sieg-Motiv).
  */
 export function soundsForEvents(events: readonly GameEvent[]): SoundName[] {
   const hasGoal = events.some((e) => e.type === 'goal');
   const hasEnzian = events.some((e) => e.type === 'enzianStart');
+  const hasDefeated = events.some((e) => e.type === 'bossDefeated');
   const out: SoundName[] = [];
   for (const e of events) {
+    if (hasDefeated && e.type === 'bossHit') continue;
     if (hasGoal && e.type === 'extraLife') continue;
     if (hasEnzian && e.type === 'powerUp') continue;
     const n = EVENT_SOUND[e.type];

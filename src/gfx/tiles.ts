@@ -17,8 +17,10 @@ export function groundTileIndex(g: TileGrid, cx: number, cy: number): number {
 }
 
 /** Streifen aus acht 16×16-Kacheln in der Reihenfolge von GROUND_TILES. */
-export function buildGroundTileset(_w: WorldPalette): PixelGrid {
-  const { groundTop, groundFill } = buildSprites();
+export function buildGroundTileset(_w: WorldPalette, style?: 'burg'): PixelGrid {
+  const sprites = buildSprites();
+  const groundTop = style === 'burg' ? sprites.burgTop : sprites.groundTop;
+  const groundFill = style === 'burg' ? sprites.burgFill : sprites.groundFill;
   const out = grid(GROUND_TILES.length * 16, 16);
   GROUND_TILES.forEach((name, i) => {
     const tile = (name.startsWith('top') ? groundTop : groundFill).map((r) => r.slice());
