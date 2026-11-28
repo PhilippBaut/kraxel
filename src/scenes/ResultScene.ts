@@ -12,6 +12,8 @@ export interface ResultData {
   levelId: string;
   time: number;
   edelweiss: [boolean, boolean, boolean];
+  /** Gibt es im Level Edelweiß? Sonst bleibt die Zeile weg (Festung). */
+  hasEdelweiss: boolean;
   crystals: number;
   newBest: boolean;
   bestTime: number | null;
@@ -73,7 +75,7 @@ export class ResultScene extends Phaser.Scene {
     this.record = d.newBest ? text(TEXT.NEW_RECORD, GOLD) : null;
     if (this.record) row(null, this.record);
     y += BLOCK_GAP;
-    row(TEXT.EDELWEISS, ...d.edelweiss.map((e) => icon(e ? 'iEdel' : 'iEdelOff')));
+    if (d.hasEdelweiss) row(TEXT.EDELWEISS, ...d.edelweiss.map((e) => icon(e ? 'iEdel' : 'iEdelOff')));
     row(TEXT.CRYSTALS, icon('iCrystal'), text(String(d.crystals)));
     this.contentH = y + BLOCK_GAP;
 

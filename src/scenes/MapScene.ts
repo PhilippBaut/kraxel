@@ -5,14 +5,16 @@ import type { Sfx } from '../audio/sfx.ts';
 import { TILE } from '../config.ts';
 import { formatTime } from '../core/format.ts';
 import { DirEdges } from '../core/dir-edges.ts';
+import { levelHasEdelweiss, parseLevel } from '../core/level.ts';
 import { newRun } from '../core/run.ts';
 import { loadSave, safeStorage, withLastNode, writeSave, type SaveData } from '../core/save.ts';
-import { enterable, nodeAtPoint, nodeById, nodeOpen, pathOpen, pickDirection, route, withoutOpened, worldCleared, type MapNode, type MapPath } from '../core/worldmap.ts';
+import { enterable, nodeAtPoint, nodeEdelweiss, nodeById, nodeOpen, pathOpen, pickDirection, route, withoutOpened, worldCleared, type MapNode, type MapPath } from '../core/worldmap.ts';
 import { GLYPH_H } from '../gfx/font.ts';
 import { OutlinedText } from '../gfx/pixel-text.ts';
 import { helmName, type SpriteName } from '../gfx/sprites.ts';
 import type { Controls } from '../input/controls.ts';
 import { zoneAt } from '../input/touch.ts';
+import { LEVELS } from '../levels/index.ts';
 import { WORLD1 } from '../maps/world1.ts';
 import { TEXT } from '../ui-text.ts';
 import type { Layout } from '../view/layout.ts';
@@ -40,7 +42,7 @@ const BAND_COLOR = 0x1a1030;
 const BAND_ALPHA = 0.85;
 const GOLD = 0xffd23f;
 
-/** Was UiScene über den aktuellen Punkt anzeigt. `time` und `edelweiss` sind bei Hütte und Platzhalter null. */
+/** Was UiScene über den aktuellen Punkt anzeigt. `time` ist bei Hütte und Platzhalter null, `edelweiss` zusätzlich bei Levels ohne Edelweiß (Festung). */
 export interface MapInfo { name: string; time: string | null; edelweiss: [boolean, boolean, boolean] | null }
 
 interface Walk {
@@ -290,7 +292,7 @@ export class MapScene extends Phaser.Scene {
     const info: MapInfo = {
       name: n.kind === 'teaser' ? TEXT.COMING_SOON : n.name,
       time: hasLevel ? (rec?.bestTime != null ? formatTime(rec.bestTime, false) : TEXT.NO_TIME) : null,
-      edelweiss: hasLevel ? [rec?.edelweiss[0] === true, rec?.edelweiss[1] === true, rec?.edelweiss[2] === true] : null,
+      edelweiss: nodeEdelweiss(n, rec, (id) => levelHasEdelweiss(parseLevel(id, LEVELS[id] ?? ''))),
     };
     this.registry.set('mapInfo', info);
   }

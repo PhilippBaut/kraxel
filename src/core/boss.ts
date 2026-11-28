@@ -32,6 +32,8 @@ export const BOSS_THROW_GAP = 0.4;
 /** Schonfrist am Anfang des Steinwurfs: Berührung tut noch nicht weh, der erste Stein ist noch nicht los (Kraxel kann sich lösen). */
 export const BOSS_THROW_GRACE = 0.2;
 export const BOSS_INVULN = 0.8;
+/** So lange liegt der besiegte Murmelkönig sichtbar da; erst danach erscheint das Gipfelkreuz (sonst überlagern sich Sieg und Ziel). */
+export const BOSS_LIE = 1.6;
 const GRAVITY = 900;
 const STONE_SIZE = 8;
 const STONE_GRAVITY = 600;
@@ -56,9 +58,9 @@ export function bossHittable(b: BossState): boolean {
   return b.phase !== 'mound' && b.phase !== 'tremble' && b.phase !== 'defeated';
 }
 
-/** Das Gipfelkreuz nach dem Sieg: mittig auf dem Arenaboden (Spalte x0 + 8, in der Reihe über dem Boden). Sonst null. */
+/** Das Gipfelkreuz: mittig auf dem Arenaboden (Spalte x0 + 8, in der Reihe über dem Boden), erst wenn der Murmelkönig besiegt ist und `BOSS_LIE` gelegen hat. Sonst null. */
 export function summitSpawn(s: GameState): EntitySpawn | null {
-  if (!s.boss || !s.arena || s.boss.phase !== 'defeated') return null;
+  if (!s.boss || !s.arena || s.boss.phase !== 'defeated' || s.boss.t < BOSS_LIE - EPS) return null;
   return { kind: 'goal', cx: s.arena.x0 + 8, cy: s.boss.floorY / TILE - 1, index: 0 };
 }
 
@@ -209,10 +211,11 @@ function touch(s: GameState, b: BossState, t: Tuning, jumpHeld: boolean): GameEv
   }
   if (b.invuln > 0) return events; // Schonzeit: kein zweiter Treffer
   b.hits += 1;
-  b.invuln = BOSS_INVULN;
+  b.invuln = Math.max(BOSS_INVULN, BOSS_STUN_TIME - b.t); // er blinkt bis zum Ende der Benommenheit: ein Treffer je Benommenheit
   events.push({ type: 'bossHit', hits: b.hits });
   if (b.hits >= BOSS_HITS) {
     b.phase = 'defeated';
+    b.t = 0; // ab jetzt zählt die Liegezeit bis zum Gipfelkreuz
     b.rocks = [];
     events.push({ type: 'bossDefeated' });
   }

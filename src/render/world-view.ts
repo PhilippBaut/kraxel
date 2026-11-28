@@ -2,7 +2,7 @@
 // Liest den GameState nur, verändert ihn nie.
 import Phaser from 'phaser';
 import { TILE } from '../config.ts';
-import { BOSS_INVULN, summitSpawn } from '../core/boss.ts';
+import { BOSS_INVULN, BOSS_LIE, summitSpawn } from '../core/boss.ts';
 import type { EnemyState } from '../core/enemies.ts';
 import type { GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
@@ -40,7 +40,7 @@ const SHAKE_MS = 120, SHAKE_PX = 2;
 /** Murmelkönig: weißer Blitz nach einem Treffer (s), danach blinkt er bis zum Ende der Schonzeit; Eingraben wechselt nach DIG_SWITCH das Bild. */
 const BOSS_FLASH = 0.12, DIG_SWITCH = 0.2;
 /** Besiegt: so lange liegt er da (s), ab BOSS_BLINK blinkt er, dann ist er weg. */
-const BOSS_LIE = 1.6, BOSS_BLINK = 0.8;
+const BOSS_BLINK = 0.8;
 /** Die Arenatür fällt in DOOR_DROP s von oben herab. */
 const DOOR_DROP = 0.25;
 /** Erdstaub am Hügel: alle MOUND_DUST s (beim Beben alle TREMBLE_DUST s) ein Korn. */

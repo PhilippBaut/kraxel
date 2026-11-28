@@ -3,6 +3,7 @@
 // Alle Wege laufen über echte Eingabe-Skripte mit durchgehendem Eingabe-Takt, nichts wird in die Arena oder zum Kreuz teleportiert.
 import { describe, expect, it } from 'vitest';
 import { STEP, TILE, VIEW_H } from '../config.ts';
+import { BOSS_LIE } from '../core/boss.ts';
 import { createCamera, stepCamera } from '../core/camera.ts';
 import type { CameraLock } from '../core/camera.ts';
 import { platformSupports } from '../core/collide.ts';
@@ -358,6 +359,8 @@ function fight(s: GameState, p: Play, opts: { side?: -1 | 1; hold?: number; maxS
 /** Nach dem Sieg zum Gipfelkreuz mitten auf dem Arenaboden. */
 function toCross(s: GameState, p: Play): void {
   goTo(s, p, ARENA.x0 + 8);
+  // Das Kreuz erscheint erst nach der Liegezeit des Murmelkönigs: auf der Stelle warten, bis es das Ziel auslöst.
+  for (let i = 0; i < 300 && s.phase === 'playing'; i++) p.step(steer(s, (ARENA.x0 + 8.5) * TILE));
 }
 
 /** Lücken in der untersten Reihe als Spaltenbereiche. */
@@ -1019,7 +1022,11 @@ describe('Festung 1-F: Kampf gegen den Murmelkönig', () => {
       expect(count(p.events, 'bossDefeated')).toBe(1);
       expect(count(p.events, 'bossPop')).toBe(3);
       expect(count(p.events, 'bossThrow'), 'zwei Steinwürfe vor dem Sieg, je 2 Steine (der Wurf folgt auf den Treffer)').toBe(4);
+      // Sieg und Ziel liegen nie im selben Schritt: das Kreuz erscheint erst, wenn er BOSS_LIE gelegen hat.
+      expect(has(p.events, 'goal'), 'noch kein Ziel im Siegschritt').toBe(false);
+      expect(s.phase, 'noch im Spiel').toBe('playing');
       toCross(s, p);
+      expect(s.boss!.t, 'Ziel frühestens nach der Liegezeit').toBeGreaterThanOrEqual(BOSS_LIE - 1e-6);
       expect(s.phase).toBe('goal');
       expect(exitOf(p.events)).toBe('normal');
       expect(has(p.events, 'hurt')).toBe(false);

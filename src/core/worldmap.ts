@@ -1,6 +1,6 @@
 // Weltkarte: Punkte, Wege, Freischalten, Wegwahl, Route und Tipp-Auswahl. Kein Phaser, kein DOM.
 import { TILE } from '../config.ts';
-import type { ExitKind, SaveData } from './save.ts';
+import type { ExitKind, LevelRecord, SaveData } from './save.ts';
 
 export type NodeKind = 'hut' | 'level' | 'fortress' | 'teaser';
 export type Dir = 'left' | 'right' | 'up' | 'down';
@@ -188,4 +188,10 @@ export function withoutOpened(m: WorldMap, save: SaveData, paths: readonly MapPa
 /** Der Kartenpunkt, der zu einem Level gehört (null, wenn es keinen gibt, z. B. beim Entwickler-Zugang). */
 export function nodeForLevel(m: WorldMap, levelId: string): MapNode | undefined {
   return m.nodes.find((n) => n.levelId === levelId);
+}
+
+/** Edelweiß für die Karten-Info: nur bei Level-Punkten, deren Level welche hat (`levelHasEdelweiss`); sonst null (Hütte, Teaser, Festung ohne Edelweiß). */
+export function nodeEdelweiss(n: MapNode, rec: LevelRecord | undefined, levelHasEdelweiss: (levelId: string) => boolean): [boolean, boolean, boolean] | null {
+  if ((n.kind !== 'level' && n.kind !== 'fortress') || n.levelId === null || !levelHasEdelweiss(n.levelId)) return null;
+  return [rec?.edelweiss[0] === true, rec?.edelweiss[1] === true, rec?.edelweiss[2] === true];
 }

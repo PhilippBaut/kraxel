@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { STEP, TILE } from '../config.ts';
-import { createBoss, stepBoss } from './boss.ts';
+import { BOSS_LIE, createBoss, stepBoss, summitSpawn } from './boss.ts';
 import type { BossPhase } from './boss.ts';
 import { killPlayer, respawn, stepGame } from './game.ts';
 import type { GameState } from './game.ts';
@@ -10,12 +10,12 @@ import { DEFAULT_TUNING } from './tuning.ts';
 import type { GameEvent } from './types.ts';
 import { gameFrom, held, placePlayer, runGame } from './test-helpers.ts';
 
-/** Arena Spalte 2 bis 17 (16 breit), Tür in Spalte 1. Murmelkönig X unten links in Spalte 14, Reihe 10 (Körper: Spalten 14-15, Reihen 9-10).
+/** Arena Spalte 2 bis 17 (16 breit), Tür in Spalte 1, rechte Mauer in Spalte 18 (Prüfung verlangt sie). Murmelkönig X unten links in Spalte 14, Reihe 10 (Körper: Spalten 14-15, Reihen 9-10).
  *  Start P liegt links der Arena. Boden in Reihe 11, Decke in Reihe 0. */
 const ROWS = [
   '####################',
-  ...Array(9).fill('#..................#'),
-  '#P............X....#',
+  ...Array(9).fill('#.................##'),
+  '#P............X...##',
   '####################',
 ];
 const HEADER = ['arena: 2 17'];
@@ -320,7 +320,7 @@ describe('Murmelkönig: Herausspringen trifft nur an der Stelle', () => {
 });
 
 describe('Murmelkönig: Treffer', () => {
-  it('in Benommen zählt Landen auf dem Kopf: Treffer, Schonzeit 0,8 s, Kraxel prallt ab', () => {
+  it('in Benommen zählt Landen auf dem Kopf: Treffer, Schonzeit bis zum Ende der Benommenheit (mindestens 0,8 s), Kraxel prallt ab', () => {
     const s = arena();
     setPhase(s, 'stunned');
     dropOnHead(s);
@@ -329,7 +329,7 @@ describe('Murmelkönig: Treffer', () => {
     expect(types(events)).toContain('stomp');
     expect(boss(s).hits).toBe(1);
     expect(boss(s).invuln).toBeGreaterThan(0.7);
-    expect(boss(s).invuln).toBeLessThanOrEqual(0.8);
+    expect(boss(s).invuln).toBeLessThanOrEqual(1.2); // früh getroffen: bis zum Ende der 1,2 s Benommenheit
     expect(s.player.body.vy).toBeLessThan(0);
     expect(types(events)).not.toContain('hurt');
   });
@@ -341,8 +341,37 @@ describe('Murmelkönig: Treffer', () => {
     dropOnHead(s);
     runGame(s, [[{}, 10]]);
     expect(boss(s).hits).toBe(1);
-    runGame(s, [[{}, steps(0.8)]]);
+    runGame(s, [[{}, steps(1.2)]]);
     expect(boss(s).invuln).toBe(0);
+  });
+  it('ein Treffer je Benommenheit: wer früh trifft und den Sprung hält, prallt weiter auf dem Kopf ab, ohne einen zweiten Treffer (alle drei Fenster)', () => {
+    const s = arena();
+    const hitsSeen: number[] = [];
+    for (let cycle = 0; cycle < 3; cycle++) {
+      expect(boss(s).hits).toBe(cycle);
+      setPhase(s, 'stunned');
+      boss(s).invuln = 0;
+      dropOnHead(s);
+      const all: GameEvent[] = [];
+      let bounces = 0, firstHitT = -1;
+      // Das Fenster (1,2 s) fast ganz durchspielen; Sprung gehalten, damit Kraxel immer wieder hoch abprallt.
+      for (let i = 0; i < steps(1.15) && boss(s).phase === 'stunned'; i++) {
+        const ev = runGame(s, [[{ jump: true }, 1]]);
+        if (types(ev).includes('bossHit') && firstHitT < 0) firstHitT = boss(s).t;
+        bounces += ev.filter((e) => e.type === 'stomp').length;
+        all.push(...ev);
+      }
+      expect(firstHitT, 'der erste Treffer fällt früh in die Benommenheit').toBeLessThanOrEqual(0.1 + 1e-6);
+      const hitEvents = all.filter((e) => e.type === 'bossHit');
+      expect(hitEvents, `Fenster ${cycle + 1}: genau ein Treffer`).toHaveLength(1);
+      hitsSeen.push(...hitEvents.map((e) => (e.type === 'bossHit' ? e.hits : 0)));
+      if (cycle < 2) expect(bounces, 'er prallt mehrmals ab').toBeGreaterThanOrEqual(2);
+      expect(types(all), 'die Abpraller tun Kraxel nichts').not.toContain('hurt');
+      expect(boss(s).invuln, 'er blinkt bis zum Ende der Benommenheit').toBeGreaterThan(0);
+      if (cycle < 2) expect(boss(s).phase).toBe('stunned');
+    }
+    expect(hitsSeen).toEqual([1, 2, 3]);
+    expect(boss(s).phase).toBe('defeated');
   });
   it('Stampfen in Benommen zählt auch', () => {
     const s = arena();
@@ -543,7 +572,9 @@ describe('Murmelkönig: Sieg', () => {
     expect(last).toContainEqual({ type: 'bossHit', hits: 3 });
     expect(types(last)).toContain('bossDefeated');
     expect(boss(s).phase).toBe('defeated');
-    // Nach dem Sieg läuft Kraxel zum Kreuz (Spalte 10 = Arenamitte x0+8) und löst das Ziel aus.
+    // Nach dem Sieg liegt er BOSS_LIE da, dann erscheint das Kreuz; Kraxel läuft hin (Spalte 10 = Arenamitte x0+8) und löst das Ziel aus.
+    runGame(s, [[{}, steps(BOSS_LIE) + 2]]);
+    expect(summitSpawn(s)).not.toBeNull();
     const sampler = new InputSampler();
     const goal: GameEvent[] = [];
     for (let i = 0; i < 300 && s.phase === 'playing'; i++) {
@@ -553,6 +584,21 @@ describe('Murmelkönig: Sieg', () => {
     expect(g).toMatchObject({ type: 'goal', exit: 'normal' });
     expect(s.phase).toBe('goal');
     expect(types(goal)).not.toContain('hurt');
+  });
+  it('das Gipfelkreuz gibt es erst, wenn der Murmelkönig BOSS_LIE gelegen hat; vorher löst auch Berührung kein Ziel aus', () => {
+    const s = arena();
+    boss(s).hits = 2;
+    hitOnce(s);
+    expect(boss(s).phase).toBe('defeated');
+    expect(summitSpawn(s)).toBeNull();
+    placePlayer(s, 10, 10); // mitten auf der Kreuzspalte (Arenamitte x0 + 8)
+    const früh = runGame(s, [[{}, steps(BOSS_LIE) - 5]]);
+    expect(types(früh)).not.toContain('goal');
+    expect(s.phase).toBe('playing');
+    expect(summitSpawn(s)).toBeNull();
+    const spät = runGame(s, [[{}, 10]]);
+    expect(summitSpawn(s)).not.toBeNull();
+    expect(types(spät)).toContain('goal');
   });
   it('der besiegte Murmelkönig tut nichts mehr', () => {
     const s = arena();
@@ -568,6 +614,7 @@ describe('Murmelkönig: Sieg', () => {
     const s = arena();
     boss(s).hits = 2;
     hitOnce(s);
+    boss(s).t = BOSS_LIE; // das Kreuz ist da
     placePlayer(s, 10, 6); // Füße 4 Kacheln über dem Kreuzfuß: zwischen Reihe 6 und 7 -> Höhe 4 Kacheln +
     s.player.body.y -= 12; // etwas höher (>= 4,5 Kacheln)
     const lives = s.session.lives;

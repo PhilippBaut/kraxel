@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseLevel, validateLevel, LevelError } from './level.ts';
+import { parseLevel, validateLevel, levelHasEdelweiss, LevelError } from './level.ts';
 import { Cell } from './types.ts';
 import { LEVELS } from '../levels/index.ts';
 
@@ -98,5 +98,69 @@ describe('Kopfzeile stil', () => {
   });
   it('unbekannter Stil ist ein Fehler mit Zeilennummer', () => {
     expect(() => parseLevel('t', 'name: t\nstil: eis\n---\nP.\n##')).toThrow(/Zeile 2.*Stil/);
+  });
+});
+
+describe('levelHasEdelweiss', () => {
+  it('ist wahr für 1-1 bis 1-4 und falsch für die Festung 1-F (sie hat keine Edelweiß)', () => {
+    for (const id of ['1-1', '1-2', '1-3', '1-4']) expect(levelHasEdelweiss(parseLevel(id, LEVELS[id])), id).toBe(true);
+    expect(levelHasEdelweiss(parseLevel('1-F', LEVELS['1-F']))).toBe(false);
+  });
+});
+
+describe('Arena und Steinschlag: strengere Prüfung', () => {
+  /** Arena Spalte 2 bis 17, Tür in Spalte 1, Boden in Reihe 11, rechte Mauer in Spalte 18. P links der Arena, Murmelkönig X in Spalte 14. */
+  const ROWS = [
+    '####################',
+    ...Array(9).fill('#.................##'),
+    '#P............X...##',
+    '####################',
+  ];
+  const text = (rows: string[], header = ['arena: 2 17']) => ['name: t', 'world: 1', ...header, '---', ...rows].join('\n');
+  const check = (rows: string[]) => validateLevel(parseLevel('t', text(rows)), { requireEdelweiss: false, requireGoal: true });
+  const set = (rows: string[], cy: number, cx: number, ch: string) => rows.map((r, i) => (i === cy ? r.slice(0, cx) + ch + r.slice(cx + 1) : r));
+
+  it('das Ausgangslevel ist gültig', () => {
+    expect(check(ROWS)).toEqual([]);
+  });
+  it('Arenaboden: ein Loch im Boden unter der Arena wird gemeldet', () => {
+    const p = check(set(ROWS, 11, 5, '.')).join('|');
+    expect(p).toMatch(/Arenaboden/);
+    expect(p).toMatch(/Spalte 5/);
+  });
+  it('Arenaboden: eine Stufe im Boden (feste Zelle in der Bodenreihe darüber) wird gemeldet', () => {
+    expect(check(set(ROWS, 10, 8, '#')).join('|')).toMatch(/Arenaboden|Platz/);
+  });
+  it('Arenaboden: ein tieferer Boden an einer Spalte wird gemeldet', () => {
+    const rows = set(set(ROWS, 11, 9, '.'), 12, 9, '#'); // Boden liegt dort eine Reihe tiefer (Reihe 12 ist Levelboden)
+    expect(check(rows).join('|')).toMatch(/Arenaboden/);
+  });
+  it('rechte Wand: Spalte x1 + 1 muss bis zur Kopffreiheit fest sein', () => {
+    const p = check(set(ROWS, 8, 18, '.')).join('|');
+    expect(p).toMatch(/rechte Wand|Mauer/i);
+    expect(p).toMatch(/Reihe 8/);
+  });
+  it('rechte Wand: fehlt sie ganz, wird sie gemeldet', () => {
+    const rows = ROWS.map((r) => r.slice(0, 18) + '..');
+    expect(check(rows).join('|')).toMatch(/rechte Wand|Mauer/i);
+  });
+  it('Start und Steinmännchen müssen links der Arena liegen', () => {
+    expect(check(set(ROWS, 10, 1, '.').map((r, i) => (i === 10 ? r.slice(0, 5) + 'P' + r.slice(6) : r))).join('|')).toMatch(/Start P.*links/);
+    expect(check(set(ROWS, 10, 5, 'S')).join('|')).toMatch(/links/);
+    const spät = check(set(ROWS, 10, 9, 'S')).join('|');
+    expect(spät).toMatch(/Steinmännchen S bei 9,10/);
+  });
+  it('Steinmännchen links der Arena sind in Ordnung', () => {
+    // Spalte 1 liegt links der Arena (Tür); wer dort steht, ist vor der Arena.
+    const rows = ROWS.map((r, i) => (i === 10 ? '#S' + r.slice(2) : r));
+    expect(validateLevel(parseLevel('t', ['name: t', 'world: 1', 'arena: 2 17', '---', ...rows.map((r, i) => (i === 9 ? 'P' + r.slice(1) : r))].join('\n')), { requireEdelweiss: false, requireGoal: true })).toEqual([]);
+  });
+  it('Brocken R: ohne feste Decke direkt darüber wird er gemeldet, in Reihe 0 und unter fester Zelle nicht', () => {
+    const lose = set(ROWS, 5, 8, 'R'); // Reihe 4 darüber ist leer
+    expect(check(lose).join('|')).toMatch(/Brocken R bei 8,5/);
+    const haengt = set(set(ROWS, 4, 8, '#'), 5, 8, 'R');
+    expect(check(haengt).join('|')).not.toMatch(/Brocken/);
+    const oben = ROWS.map((r, i) => (i === 0 ? r : r)); // Reihe 0 ist Decke; ein R in Reihe 0 braucht keine
+    expect(check(set(oben, 0, 8, 'R')).join('|')).not.toMatch(/Brocken/);
   });
 });

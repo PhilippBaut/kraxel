@@ -2,6 +2,7 @@
 import Phaser from 'phaser';
 import { formatTime } from '../core/format.ts';
 import type { GameState } from '../core/game.ts';
+import { levelHasEdelweiss } from '../core/level.ts';
 import { GLYPH_H, textWidth } from '../gfx/font.ts';
 import { drawPanelEdge, ensurePanelPattern, PATTERN_KEY } from '../gfx/panel.ts';
 import { OutlinedText } from '../gfx/pixel-text.ts';
@@ -39,6 +40,8 @@ export class UiScene extends Phaser.Scene {
   private editing = false;
   /** Ohne Touch bleiben die Knöpfe verborgen, bis der erste Finger den Bildschirm berührt. */
   private readonly touchDevice = navigator.maxTouchPoints > 0;
+  /** Hat das laufende Level Edelweiß? Ohne bleibt die Edelweiß-Reihe im HUD weg (Festung). */
+  private edelOn = true;
   private hud!: {
     strip: Phaser.GameObjects.Graphics; pause: Phaser.GameObjects.Graphics;
     crystal: Phaser.GameObjects.Image; crystals: OutlinedText;
@@ -131,6 +134,11 @@ export class UiScene extends Phaser.Scene {
     const s = (this.scene.get('play') as PlayScene).state as GameState | undefined;
     if (!s) return;
     const { crystals, lives, edelweiss, time } = s.session, h = this.hud;
+    const edelOn = levelHasEdelweiss(s.level);
+    if (edelOn !== this.edelOn) {
+      this.edelOn = edelOn;
+      this.layoutHud(this.layout);
+    }
     h.crystals.setText('×' + String(crystals).padStart(3, '0'));
     h.lives.setText('×' + lives);
     h.edel.forEach((img, i) => img.setTexture(edelweiss[i] ? 'iEdel' : 'iEdelOff'));
@@ -161,7 +169,7 @@ export class UiScene extends Phaser.Scene {
     const info = map ? this.mapInfo : null;
     const hasTime = !map || info?.time != null;
     h.time.setVisible(hasTime);
-    h.edel.forEach((img) => img.setVisible(hasTime));
+    h.edel.forEach((img) => img.setVisible(hasTime && (map ? info?.edelweiss != null : this.edelOn)));
     const p = l.pause, bx = p.x + Math.floor((p.w - 2 * PAUSE_BAR_W - PAUSE_BAR_GAP) / 2);
     h.pause.clear().fillStyle(portrait ? PAUSE_PORTRAIT : PAUSE_LANDSCAPE, portrait ? 1 : PAUSE_LANDSCAPE_ALPHA);
     h.pause.fillRect(bx, y, PAUSE_BAR_W, GLYPH_H).fillRect(bx + PAUSE_BAR_W + PAUSE_BAR_GAP, y, PAUSE_BAR_W, GLYPH_H);
@@ -179,7 +187,7 @@ export class UiScene extends Phaser.Scene {
     h.lives.setPosition(x, y);
     x += textWidth('×00') + GROUP_GAP;
     h.edel.forEach((img, i) => img.setPosition(x + i * EDEL_STEP, y));
-    h.sling.setPosition(x + 2 * EDEL_STEP + ICON + GROUP_GAP, y);
+    h.sling.setPosition(this.edelOn ? x + 2 * EDEL_STEP + ICON + GROUP_GAP : x, y);
     this.timeRight = portrait ? l.pause.x - 6 : r.x + r.w - 4;
     h.time.setPosition(this.timeRight - h.time.width, y);
   }
@@ -190,11 +198,11 @@ export class UiScene extends Phaser.Scene {
    */
   private layoutMapInfo(l: Layout, barY: number): void {
     const h = this.hud, r = l.hud, hasTime = this.mapInfo?.time != null;
-    const edelW = 2 * EDEL_STEP + ICON;
+    const edelW = this.mapInfo?.edelweiss != null ? 2 * EDEL_STEP + ICON : 0;
     if (l.orientation === 'portrait') {
       const nameY = r.y + 6, rowY = nameY + GLYPH_H + 5;
       h.name.setPosition(Math.floor((l.gameW - h.name.width) / 2), nameY);
-      const total = h.time.width + GROUP_GAP + edelW;
+      const total = h.time.width + (edelW > 0 ? GROUP_GAP + edelW : 0);
       const x0 = Math.floor((l.gameW - total) / 2);
       h.time.setPosition(x0, rowY + 1);
       h.edel.forEach((img, i) => img.setPosition(x0 + h.time.width + GROUP_GAP + i * EDEL_STEP, rowY));

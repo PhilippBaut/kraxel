@@ -127,3 +127,64 @@ describe('Speicherstand', () => {
     expect(safeStorage()).toBeNull();
   });
 });
+
+describe('Speicherstand: Fassung von 1-F (levelRevs)', () => {
+  const rec = (bestTime: number | null, normal: boolean) => ({ bestTime, edelweiss: [false, false, false], completed: normal, exits: { normal, secret: false } });
+  /** Stand aus der Zeit des Platzhalters: 1-F in 10 s „geschafft“, ohne levelRevs. */
+  const alterStand = () => {
+    const d: Record<string, unknown> = { ...defaultSave(), levels: { '1-1': rec(60, true), '1-2': rec(70, true), '1-3': rec(80, true), '1-4': rec(90, true), '1-F': rec(10, true) }, muted: true, musicMuted: true, lastNode: 'teaser' };
+    delete d.levelRevs;
+    return d;
+  };
+  const laden = (d: unknown) => loadSave({ getItem: () => JSON.stringify(d), setItem: () => {} });
+
+  it('der Standardstand trägt die Fassung 1 für 1-F', () => {
+    expect(defaultSave().levelRevs).toEqual({ '1-F': 1 });
+  });
+  it('ein Stand mit Platzhalter-1-F und ohne levelRevs verliert nur 1-F; 1-1 bis 1-4 und Einstellungen bleiben', () => {
+    const d = laden(alterStand());
+    expect(Object.keys(d.levels).sort()).toEqual(['1-1', '1-2', '1-3', '1-4']);
+    expect(d.levels['1-4']).toEqual(rec(90, true));
+    expect(d.muted).toBe(true); expect(d.musicMuted).toBe(true);
+    expect(d.levelRevs).toEqual({ '1-F': 1 });
+  });
+  it('lastNode auf dem nun gesperrten Teaser wird auf die Festung zurückgesetzt, andere Punkte bleiben', () => {
+    expect(laden(alterStand()).lastNode).toBe('1-F');
+    expect(laden({ ...alterStand(), lastNode: '1-2' }).lastNode).toBe('1-2');
+  });
+  it('zweimal laden ist stabil: der geschriebene Stand lädt gleich wieder', () => {
+    const store = mem();
+    store.setItem(SAVE_KEY, JSON.stringify(alterStand()));
+    const a = loadSave(store);
+    writeSave(store, a);
+    const b = loadSave(store);
+    expect(b).toEqual(a);
+    expect(loadSave(store)).toEqual(b);
+  });
+  it('ein Stand mit levelRevs 1-F = 1 behält seinen echten 1-F-Eintrag', () => {
+    const d = laden({ ...alterStand(), levelRevs: { '1-F': 1 }, lastNode: 'teaser' });
+    expect(d.levels['1-F']).toEqual(rec(10, true));
+    expect(d.lastNode).toBe('teaser');
+  });
+  it('die Übernahme von v1 endet mit levelRevs', () => {
+    const t = mem();
+    t.setItem(SAVE_KEY_V1, JSON.stringify({ version: 1, muted: true, levels: { '1-1': { bestTime: 50, edelweiss: [true, false, false], completed: true } } }));
+    const d = loadSave(t);
+    expect(d.levelRevs).toEqual({ '1-F': 1 });
+    expect(d.levels['1-1']!.exits.normal).toBe(true);
+  });
+  it('kaputte levelRevs werfen nie und gelten als fehlend', () => {
+    for (const bad of [5, 'x', null, [], { '1-F': 'eins' }, { '1-F': null }, { '1-F': Infinity }]) {
+      let d: ReturnType<typeof loadSave> | undefined;
+      expect(() => { d = laden({ ...alterStand(), levelRevs: bad }); }, JSON.stringify(bad)).not.toThrow();
+      expect(d!.levels['1-F'], JSON.stringify(bad)).toBeUndefined();
+      expect(d!.levelRevs).toEqual({ '1-F': 1 });
+    }
+  });
+  it('recordResult, recordEdelweiss und withLastNode erhalten levelRevs', () => {
+    const d = defaultSave();
+    expect(recordResult(d, '1-1', 50, [false, false, false]).data.levelRevs).toEqual({ '1-F': 1 });
+    expect(recordEdelweiss(d, '1-1', [true, false, false]).levelRevs).toEqual({ '1-F': 1 });
+    expect(withLastNode(d, '1-1').levelRevs).toEqual({ '1-F': 1 });
+  });
+});

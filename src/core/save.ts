@@ -6,10 +6,30 @@ export const SAVE_KEY_V1 = 'kraxel-save-v1';
 
 export type ExitKind = 'normal' | 'secret';
 export interface LevelRecord { bestTime: number | null; edelweiss: [boolean, boolean, boolean]; completed: boolean; exits: { normal: boolean; secret: boolean } }
-export interface SaveData { version: 2; levels: Record<string, LevelRecord>; muted: boolean; musicMuted: boolean; lastNode: string | null }
+/** `levelRevs`: Fassung der Level-Einträge je Level-ID. Steigt die Fassung eines Levels, wird sein alter Eintrag einmal verworfen (siehe `FORTRESS_REV`). */
+export interface SaveData { version: 2; levels: Record<string, LevelRecord>; muted: boolean; musicMuted: boolean; lastNode: string | null; levelRevs: Record<string, number> }
+
+/** 1-F war zuerst ein Platzhalter, der in Sekunden zu schaffen war. Stände ohne diese Fassung verlieren den 1-F-Eintrag (einmalig, Version 2 bleibt). */
+const FORTRESS_REV = 1;
 
 export function defaultSave(): SaveData {
-  return { version: 2, levels: {}, muted: false, musicMuted: false, lastNode: null };
+  return { version: 2, levels: {}, muted: false, musicMuted: false, lastNode: null, levelRevs: { '1-F': FORTRESS_REV } };
+}
+
+/** Gültige Fassungen übernehmen; alles andere (fehlend, kaputt) gilt als nicht vorhanden. */
+function readRevs(v: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!isRecord(v)) return out;
+  for (const [id, rev] of Object.entries(v)) if (typeof rev === 'number' && Number.isFinite(rev)) out[id] = rev;
+  return out;
+}
+
+/** Einmalig und wiederholbar: Platzhalter-1-F verwerfen. Zeigt `lastNode` auf den nun gesperrten Teaser, geht es zurück zur Festung (die Karte fällt bei jedem anderen ungültigen Punkt selbst auf den Start zurück). */
+function migrate(d: SaveData): SaveData {
+  if (d.levelRevs['1-F'] === FORTRESS_REV) return d;
+  const levels = { ...d.levels };
+  delete levels['1-F'];
+  return { ...d, levels, lastNode: d.lastNode === 'teaser' ? '1-F' : d.lastNode, levelRevs: { ...d.levelRevs, '1-F': FORTRESS_REV } };
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -38,7 +58,7 @@ function parseV2(raw: string): SaveData | null {
     const e = rec.edelweiss as boolean[];
     out[id] = { bestTime: rec.bestTime as number | null, edelweiss: [e[0], e[1], e[2]], completed: rec.completed as boolean, exits: { normal: exits.normal, secret: exits.secret } };
   }
-  return { version: 2, levels: out, muted, musicMuted, lastNode };
+  return migrate({ version: 2, levels: out, muted, musicMuted, lastNode, levelRevs: readRevs(data.levelRevs) });
 }
 
 /** Alten v1-Stand übernehmen: ein abgeschlossenes Level zählt als normaler Ausgang. */
@@ -54,7 +74,7 @@ function parseV1(raw: string): SaveData | null {
     const completed = rec.completed as boolean;
     out[id] = { bestTime: rec.bestTime as number | null, edelweiss: [e[0], e[1], e[2]], completed, exits: { normal: completed, secret: false } };
   }
-  return { version: 2, levels: out, muted, musicMuted: false, lastNode: null };
+  return migrate({ version: 2, levels: out, muted, musicMuted: false, lastNode: null, levelRevs: {} });
 }
 
 function tryRead(store: KeyValueStore, key: string, parse: (raw: string) => SaveData | null): SaveData | null {

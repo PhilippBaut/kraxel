@@ -6,7 +6,7 @@ import { soundsForEvents, type Sfx } from '../audio/sfx.ts';
 import { createCamera, stepCamera, type CameraLock, type CameraState } from '../core/camera.ts';
 import { createGame, restartLevel, stepGame, type GameState } from '../core/game.ts';
 import type { TileGrid } from '../core/grid.ts';
-import { parseLevel } from '../core/level.ts';
+import { levelHasEdelweiss, parseLevel } from '../core/level.ts';
 import { levelTitle } from '../core/level-title.ts';
 import { PIT_ALPHA, pitFadeLength } from '../core/pit-shade.ts';
 import { newRun, runAfterGameOver, runAfterLevel, sessionFor, type RunState } from '../core/run.ts';
@@ -294,7 +294,7 @@ export class PlayScene extends Phaser.Scene {
     writeSave(store, data);
     if (this.fromMap) this.registry.set('run', runAfterLevel(this.registry.get('run') as RunState, this.state));
     const result: ResultData = {
-      levelId: this.levelId, time, edelweiss, crystals, newBest, bestTime: data.levels[this.levelId]?.bestTime ?? null,
+      levelId: this.levelId, time, edelweiss, hasEdelweiss: levelHasEdelweiss(this.state.level), crystals, newBest, bestTime: data.levels[this.levelId]?.bestTime ?? null,
     };
     this.scene.pause();
     this.scene.launch('result', result);

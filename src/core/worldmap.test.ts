@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSave, type LevelRecord, type SaveData } from './save.ts';
-import { enterable, nodeAtPoint, nodeForLevel, nodeOpen, openedBetween, pathOpen, pickDirection, route, validateMap, withoutOpened, worldCleared, type WorldMap } from './worldmap.ts';
+import { enterable, nodeAtPoint, nodeForLevel, nodeEdelweiss, nodeOpen, openedBetween, pathOpen, pickDirection, route, validateMap, withoutOpened, worldCleared, type WorldMap } from './worldmap.ts';
 import { WORLD1 } from '../maps/world1.ts';
+import { levelHasEdelweiss, parseLevel } from './level.ts';
+import { LEVELS } from '../levels/index.ts';
 
 const IDS = ['1-1', '1-2', '1-3', '1-4', '1-F'];
 
@@ -156,5 +158,17 @@ describe('Punkt zu einem Level', () => {
   it('nodeForLevel findet den Punkt, unbekanntes Level nicht', () => {
     expect(nodeForLevel(WORLD1, '1-2')?.id).toBe('1-2');
     expect(nodeForLevel(WORLD1, 'uebungsplatz')).toBeUndefined();
+  });
+});
+
+describe('Kartenpunkt: Edelweiß in der Info', () => {
+  const hat = (levelId: string) => levelHasEdelweiss(parseLevel(levelId, LEVELS[levelId]!));
+  const st = save({ '1-1': { edelweiss: [true, false, true] }, '1-F': { edelweiss: [false, false, false] } });
+  it('Level zeigen ihre Edelweiß, Hütte, Teaser und die Festung ohne Edelweiß senden null', () => {
+    expect(nodeEdelweiss(node('1-1'), st.levels['1-1'], hat)).toEqual([true, false, true]);
+    expect(nodeEdelweiss(node('1-4'), undefined, hat)).toEqual([false, false, false]);
+    expect(nodeEdelweiss(node('hut'), undefined, hat)).toBeNull();
+    expect(nodeEdelweiss(node('teaser'), undefined, hat)).toBeNull();
+    expect(nodeEdelweiss(node('1-F'), st.levels['1-F'], hat)).toBeNull();
   });
 });

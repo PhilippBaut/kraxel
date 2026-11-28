@@ -132,6 +132,11 @@ export function parseLevel(id: string, text: string): LevelData {
   return { id, name, world, width, height, cells, crates, spawns, start, platforms, arena, startCount, ...(style ? { style } : {}) };
 }
 
+/** Hat das Level Edelweiß zu finden? Dann zeigen HUD, Ergebnis und Karte sie an; sonst bleiben die leeren Plätze weg. */
+export function levelHasEdelweiss(l: LevelData): boolean {
+  return l.spawns.some((s) => s.kind === 'edelweiss');
+}
+
 export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requireGoal: boolean }): string[] {
   const problems: string[] = [];
   const g = new TileGrid(l.width, l.height, l.cells);
@@ -158,6 +163,9 @@ export function validateLevel(l: LevelData, o: { requireEdelweiss: boolean; requ
 
   if (l.startCount > 0 && g.isSolid(l.start.cx, l.start.cy)) problems.push('Der Start liegt in einer festen Zelle.');
   for (const s of l.spawns) {
+    if (s.kind === 'fallingRock' && s.cy > 0 && !g.isSolid(s.cx, s.cy - 1)) {
+      problems.push(`Der Brocken R bei ${s.cx},${s.cy} braucht feste Decke direkt darüber (Reihe ${s.cy - 1}) oder Reihe 0.`);
+    }
     if (s.kind !== 'boss' && g.isSolid(s.cx, s.cy)) problems.push(`${s.kind} bei ${s.cx},${s.cy} liegt in einer festen Zelle.`);
     if ((s.kind === 'beetle' || s.kind === 'snail') && !g.isSolid(s.cx, s.cy + 1) && !startsOnPlatform(l, s)) {
       problems.push(`${s.kind} bei ${s.cx},${s.cy} hat keinen festen Boden darunter.`);
@@ -179,7 +187,9 @@ function arenaProblems(l: LevelData, g: TileGrid, bosses: EntitySpawn[]): string
   if (a.x1 - a.x0 + 1 !== ARENA_WIDTH) out.push(`arena ${a.x0} ${a.x1} muss genau ${ARENA_WIDTH} Kacheln breit sein.`);
   if (a.x0 < 1 || a.x1 >= l.width) out.push(`arena ${a.x0} ${a.x1} liegt nicht im Level (Spalte 1 bis ${l.width - 1}; links bleibt Platz für die Tür).`);
   if (bosses.length === 0) out.push('Die arena braucht den Murmelkönig X.');
+  if (l.startCount > 0 && l.start.cx >= a.x0) out.push(`Der Start P bei ${l.start.cx},${l.start.cy} muss links der Arena liegen (vor Spalte ${a.x0}).`);
   for (const z of l.spawns) {
+    if (z.kind === 'checkpoint' && z.cx >= a.x0) out.push(`Das Steinmännchen S bei ${z.cx},${z.cy} muss links der Arena liegen (vor Spalte ${a.x0}).`);
     if (z.kind === 'goal' && bosses.length > 0) out.push(`Das Gipfelkreuz Z bei ${z.cx},${z.cy} darf mit dem Murmelkönig X nicht vorkommen: das Kreuz erscheint nach dem Sieg.`);
   }
   for (const b of bosses) {
@@ -195,6 +205,21 @@ function arenaProblems(l: LevelData, g: TileGrid, bosses: EntitySpawn[]): string
       }
     }
     if (!g.isSolid(b.cx, b.cy + 1) || !g.isSolid(b.cx + 1, b.cy + 1)) out.push(`Der Murmelkönig X bei ${b.cx},${b.cy} braucht festen Boden unter beiden Zellen.`);
+    // Arenaboden: unter allen 16 Spalten fest und eben (gleiche Bodenreihe), sonst fällt er in `pop` ins Leere.
+    const floor = b.cy + 1;
+    for (let cx = a.x0; cx <= a.x1; cx++) {
+      if (!g.isSolid(cx, floor)) {
+        out.push(`Der Arenaboden ist bei Spalte ${cx} nicht fest (Reihe ${floor}); er muss unter allen ${ARENA_WIDTH} Spalten fest und eben sein.`);
+        break;
+      }
+    }
+    // Rechte Wand: Spalte x1 + 1 vom Boden hoch bis zur Kopffreiheit fest, sonst läuft der Murmelkönig bei festgestellter Kamera hinaus.
+    for (let cy = floor; cy >= b.cy - (ARENA_HEADROOM - 1); cy--) {
+      if (!g.isSolid(a.x1 + 1, cy)) {
+        out.push(`Die rechte Wand der Arena (Spalte ${a.x1 + 1}) hat bei Reihe ${cy} eine Lücke; sie muss vom Boden bis zur Kopffreiheit (${ARENA_HEADROOM} Kacheln) fest sein.`);
+        break;
+      }
+    }
   }
   return out;
 }
